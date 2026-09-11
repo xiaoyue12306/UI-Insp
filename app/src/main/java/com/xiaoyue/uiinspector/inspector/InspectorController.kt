@@ -13,6 +13,8 @@ import com.xiaoyue.uiinspector.screenshot.ScreenshotProvider
 import com.xiaoyue.uiinspector.screenshot.ScreenshotResult
 import com.xiaoyue.uiinspector.color.ColorAnalyzer
 import android.graphics.ColorSpace
+import com.xiaoyue.uiinspector.util.copyText
+import com.xiaoyue.uiinspector.util.LocatorUtils
 import kotlinx.coroutines.*
 
 class InspectorController(private val service: AccessibilityService) {
@@ -37,7 +39,7 @@ class InspectorController(private val service: AccessibilityService) {
     }
     fun select() {
         if (mode.state.value is InspectorState.Selecting) { start(); return }
-        job?.cancel(); overlays.clear(); tree = null; candidates = emptyList()
+        job?.cancel(); colorJob?.cancel(); overlays.clear(); tree = null; candidates = emptyList(); colorText = "Analyzing…"; notice = ""
         mode.state.value = InspectorState.Selecting
         capture = TouchCaptureOverlay(service, overlays, ::pick)
         if (capture?.show() != true) { stop(); return }
@@ -90,7 +92,19 @@ class InspectorController(private val service: AccessibilityService) {
         overlays.remove(highlight)
         highlight = HighlightOverlay(service, overlays, node).also { it.show() }
         val position = candidates.indexOfFirst { it.index == node.index }.let { if (it >= 0) "${it + 1} / ${candidates.size}" else "Tree node" }
-        panel.show(node, position, colorText, notice, listOf("Inspect" to ::select, "Close" to ::start, "Stop" to ::stop))
+        val nodes = tree?.nodes.orEmpty()
+        val parent = nodes.firstOrNull { it.index == node.parentIndex }
+        val child = nodes.firstOrNull { it.parentIndex == node.index }
+        val candidateIndex = candidates.indexOfFirst { it.index == node.index }
+        fun choose(next: NodeSnapshot) { colorText = "Analyzing…"; showSelected(next); refreshColor() }
+        fun action(target: NodeSnapshot?): (() -> Unit)? = target?.let { { choose(it) } }
+        panel.show(node, position, colorText, notice, listOf(
+            "Parent" to action(parent), "Child" to action(child), "Inspect" to ::select,
+            "Previous" to action(candidates.getOrNull(candidateIndex - 1)), "Next" to action(candidates.getOrNull(candidateIndex + 1)), "Refresh color" to ::refreshColor,
+            "Copy ID" to node.resourceId?.takeIf { it.isNotBlank() }?.let { id -> { copyText(service, "Resource ID", id) } },
+            "Copy bounds" to { copyText(service, "Bounds", node.bounds.toString()) },
+            "Copy Appium" to { copyText(service, "Appium Python", LocatorUtils.appium(node)) },
+            "Close" to ::start, "Stop" to ::stop))
     }
     fun stop() { job?.cancel(); colorJob?.cancel(); overlays.clear(); panel.remove(); highlight = null; floating = null; capture = null; tree = null; candidates = emptyList(); mode.state.value = InspectorState.Stopped }
     fun destroy() { stop(); scope.cancel() }
