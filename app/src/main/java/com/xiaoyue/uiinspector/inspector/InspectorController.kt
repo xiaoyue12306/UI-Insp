@@ -9,6 +9,8 @@ import com.xiaoyue.uiinspector.overlay.OverlayController
 import com.xiaoyue.uiinspector.overlay.TouchCaptureOverlay
 import com.xiaoyue.uiinspector.overlay.HighlightOverlay
 import com.xiaoyue.uiinspector.overlay.InspectorPanelOverlay
+import com.xiaoyue.uiinspector.screenshot.ScreenshotProvider
+import com.xiaoyue.uiinspector.screenshot.ScreenshotResult
 import kotlinx.coroutines.*
 
 class InspectorController(private val service: AccessibilityService) {
@@ -24,6 +26,8 @@ class InspectorController(private val service: AccessibilityService) {
     private val panel = InspectorPanelOverlay(service, overlays)
     private var colorText = "Screenshot analysis pending"
     private var notice = ""
+    private val screenshots = ScreenshotProvider(service)
+    private var colorJob: Job? = null
     fun start() {
         stop()
         floating = FloatingInspectorOverlay(service, overlays, ::select, ::stop)
@@ -54,6 +58,21 @@ class InspectorController(private val service: AccessibilityService) {
             if (BuildConfig.DEBUG) Log.d("UIInspector.Node", "Selected class=${node.className} bounds=${node.bounds} idPresent=${node.resourceId != null}; text omitted for privacy")
             notice = if (found?.truncated == true) "Tree truncated to protect performance" else ""
             showSelected(node)
+            refreshColor()
+        }
+    }
+    private fun refreshColor() {
+        val node = (mode.state.value as? InspectorState.Selected)?.node ?: return
+        val currentTree = tree ?: return
+        colorJob?.cancel()
+        colorJob = scope.launch {
+            colorText = "Analyzing…"; showSelected(node)
+            val result = screenshots.capture(node.windowId, currentTree.windowBounds, node.bounds, overlays::hideAll, overlays::showAll)
+            colorText = when (result) {
+                is ScreenshotResult.Unavailable -> result.reason
+                is ScreenshotResult.Success -> { result.bitmap.recycle(); "${result.source}: available" }
+            }
+            if ((mode.state.value as? InspectorState.Selected)?.node == node) showSelected(node)
         }
     }
     private fun showSelected(node: NodeSnapshot) {
@@ -63,6 +82,6 @@ class InspectorController(private val service: AccessibilityService) {
         val position = candidates.indexOfFirst { it.index == node.index }.let { if (it >= 0) "${it + 1} / ${candidates.size}" else "Tree node" }
         panel.show(node, position, colorText, notice, listOf("Inspect" to ::select, "Close" to ::start, "Stop" to ::stop))
     }
-    fun stop() { job?.cancel(); overlays.clear(); panel.remove(); highlight = null; floating = null; capture = null; tree = null; candidates = emptyList(); mode.state.value = InspectorState.Stopped }
+    fun stop() { job?.cancel(); colorJob?.cancel(); overlays.clear(); panel.remove(); highlight = null; floating = null; capture = null; tree = null; candidates = emptyList(); mode.state.value = InspectorState.Stopped }
     fun destroy() { stop(); scope.cancel() }
 }
