@@ -24,6 +24,7 @@ class FloatingInspectorOverlay(context: Context, private val host: OverlayContro
                 MotionEvent.ACTION_MOVE -> {
                     if (abs(event.rawX - startX) + abs(event.rawY - startY) > slop) moved = true
                     if (moved) {
+                        view.cancelLongPress()
                         val b = host.manager.currentWindowMetrics.bounds
                         params.x = (originX + event.rawX - startX).toInt().coerceIn(0, (b.width() - params.width).coerceAtLeast(0))
                         params.y = (originY + event.rawY - startY).toInt().coerceIn(0, (b.height() - params.height).coerceAtLeast(0))

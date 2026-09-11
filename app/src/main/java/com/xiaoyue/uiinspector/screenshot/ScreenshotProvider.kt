@@ -2,6 +2,7 @@ package com.xiaoyue.uiinspector.screenshot
 
 import android.accessibilityservice.AccessibilityService
 import android.graphics.Bitmap
+import android.graphics.Rect
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
@@ -47,6 +48,8 @@ class ScreenshotProvider(private val service: AccessibilityService) {
     /** Hide overlays before display capture; secure-window failures are never bypassed. */
     suspend fun capture(windowId: Int?, windowBounds: Bounds, nodeBounds: Bounds,
                         hide: () -> Unit, restore: () -> Unit): ScreenshotResult = mutex.withLock {
+        if (windowId != null && !geometryMatches(windowId, windowBounds))
+            return@withLock ScreenshotResult.Unavailable("Target moved or disappeared; select again")
         var windowCapture = Build.VERSION.SDK_INT >= 34 && windowId != null
         var hidden = false
         try {
@@ -65,6 +68,8 @@ class ScreenshotProvider(private val service: AccessibilityService) {
                 is Raw.Image -> {
                     // No suspension between receiving the hardware buffer and taking ownership in finally.
                     try {
+                        if (windowId != null && !geometryMatches(windowId, windowBounds))
+                            return@withLock ScreenshotResult.Unavailable("Target geometry changed during capture; select again")
                         var converted: ScreenshotResult? = null
                         try {
                             withContext(Dispatchers.Default) { converted = convert(raw.value, windowCapture, windowBounds, nodeBounds) }
@@ -76,6 +81,17 @@ class ScreenshotProvider(private val service: AccessibilityService) {
                 }
             }
         } finally { if (hidden) restore() }
+    }
+    @Suppress("DEPRECATION")
+    private fun geometryMatches(windowId: Int, expected: Bounds): Boolean {
+        val windows = service.windows.orEmpty()
+        try {
+            val window = windows.firstOrNull { it.id == windowId } ?: return false
+            val b = Rect(); window.getBoundsInScreen(b)
+            return expected == Bounds(b.left, b.top, b.right, b.bottom)
+        } catch (e: RuntimeException) {
+            Log.w("UIInspector.Screenshot", "Target window unavailable", e); return false
+        } finally { if (Build.VERSION.SDK_INT < 33) windows.forEach { it.recycle() } }
     }
     private fun convert(result: AccessibilityService.ScreenshotResult, windowCapture: Boolean,
                         window: Bounds, node: Bounds): ScreenshotResult {

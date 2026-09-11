@@ -5,14 +5,17 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.view.View
 import android.view.WindowManager
+import android.annotation.SuppressLint
 import com.xiaoyue.uiinspector.inspector.NodeSnapshot
 import com.xiaoyue.uiinspector.util.formatDp
 
+@SuppressLint("ViewConstructor") // Constructed by the overlay controller, never inflated from XML.
 class HighlightOverlay(context: Context, private val host: OverlayController, private val node: NodeSnapshot) : View(context) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val origin = IntArray(2)
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val origin = IntArray(2); getLocationOnScreen(origin)
+        getLocationOnScreen(origin)
         val b = node.bounds
         val l = (b.left - origin[0]).toFloat(); val t = (b.top - origin[1]).toFloat()
         paint.color = 0xff008cff.toInt(); paint.style = Paint.Style.STROKE; paint.strokeWidth = host.dp(2).toFloat()
