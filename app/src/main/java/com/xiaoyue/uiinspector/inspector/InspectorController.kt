@@ -11,6 +11,8 @@ import com.xiaoyue.uiinspector.overlay.HighlightOverlay
 import com.xiaoyue.uiinspector.overlay.InspectorPanelOverlay
 import com.xiaoyue.uiinspector.screenshot.ScreenshotProvider
 import com.xiaoyue.uiinspector.screenshot.ScreenshotResult
+import com.xiaoyue.uiinspector.color.ColorAnalyzer
+import android.graphics.ColorSpace
 import kotlinx.coroutines.*
 
 class InspectorController(private val service: AccessibilityService) {
@@ -70,7 +72,15 @@ class InspectorController(private val service: AccessibilityService) {
             val result = screenshots.capture(node.windowId, currentTree.windowBounds, node.bounds, overlays::hideAll, overlays::showAll)
             colorText = when (result) {
                 is ScreenshotResult.Unavailable -> result.reason
-                is ScreenshotResult.Success -> { result.bitmap.recycle(); "${result.source}: available" }
+                is ScreenshotResult.Success -> try {
+                    val colors = withContext(Dispatchers.Default) {
+                        val srgb = ColorSpace.get(ColorSpace.Named.SRGB)
+                        ColorAnalyzer().analyze(result.bitmap.width, result.bitmap.height, result.centerX, result.centerY) { x, y ->
+                            result.bitmap.getColor(x, y).convert(srgb).toArgb()
+                        }
+                    }
+                    "${result.source}\n${colors.description()}"
+                } finally { result.bitmap.recycle() }
             }
             if ((mode.state.value as? InspectorState.Selected)?.node == node) showSelected(node)
         }
