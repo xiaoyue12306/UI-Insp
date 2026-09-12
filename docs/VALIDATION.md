@@ -1,6 +1,6 @@
 # Validation record
 
-Date: 2026-09-11. Commands run from the repository root on Windows using JDK 21.
+Dates: 2026-09-11 and 2026-09-12. Commands run from the repository root on Windows using JDK 21.
 
 ## Build and JVM checks
 
@@ -8,7 +8,8 @@ Date: 2026-09-11. Commands run from the repository root on Windows using JDK 21.
 - `gradlew.bat :app:testDebugUnitTest`: **18 passed, 0 failed**.
 - `gradlew.bat :app:lintDebug`: successful, no errors. Remaining warnings concern dependency updates, English strings, explicit screen-coordinate LEFT gravity and programmatic touch views.
 - `gradlew.bat :qa-target:assembleDebug`: successful.
-- `gradlew.bat :app:assembleDebugAndroidTest`: successful.
+- On 2026-09-12, `:app:testDebugUnitTest :app:lintDebug :app:assembleRelease` completed successfully; 18 JVM tests passed. Release merged manifest contains neither ScreenshotValidationActivity nor the debug fixture package query. Release APK is unsigned; the installable development artifact remains app-debug.apk.
+- The original instrumentation APK compiled, but its runner was replaced by a Debug-only validation Activity after device testing exposed process-lifecycle interference (see below).
 - Initial SDK 37 discovery failed with AGP 9.1.0; fixed by upgrading to 9.1.1. SDK 37.0 revision 2 installed.
 - Initial Lint failure was an unescaped local Windows drive separator in `local.properties`; fixed. No baseline suppresses errors.
 
@@ -38,7 +39,26 @@ Screenshots from these checks are local development evidence under ignored `app/
 
 During testing the connected device changed to DUET 13M9611 (`sapphire`), API 37, 3504 × 2190, density override 306 dpi. The device reports the same ADB serial as the previous device, so model and resolution were checked separately.
 
-Initial instrumentation run failed all three tests because QA Target was not installed on the new device. Installed QA Target and the test APK. The new device's Accessibility service must also be manually enabled before execution. Automated suite status will be updated after that prerequisite is met.
+On 2026-09-12 the user enabled Accessibility on DUET. The original instrumentation runner force-stopped the target app, which caused the system to mark the Accessibility connection as crashed. The test's null-service error therefore did not mean the user had omitted authorization. Replaced the runner with `ScreenshotValidationActivity` in `src/debug`, running within the already-authorized app process. Reinstalling the APK restored the existing service binding without changing secure settings. The validation entry point and fixture package query are absent from Release builds.
+
+Executed:
+
+```text
+adb shell am start --user current -n com.xiaoyue.uiinspector/.ScreenshotValidationActivity
+adb shell run-as com.xiaoyue.uiinspector --user 10 cat files/screenshot-validation.txt
+```
+
+Result at 09:42 on DUET: **3 / 3 passed**.
+
+| Automated check | Result |
+| --- | --- |
+| Window capture with a full red accessibility overlay | PASS, dominant `#C7C6CA`, exactly matching fixture |
+| Display capture with overlay temporarily hidden | PASS, dominant `#C7C6CA`, exactly matching fixture |
+| FLAG_SECURE | PASS, explicit screenshot-prevention error rather than pixels |
+
+The center sampled an antialiased part of the button text (`#8B8A8E`); dominant correctly remained the background color. Report content ends with `DONE`. All three cases use the production ScreenshotProvider and ColorAnalyzer. The report contains only fixture diagnostics.
+
+Repeated all three checks at 09:43–09:44 after `cmd window user-rotation lock 1`. WindowManager reported rotation 1 / ROTATION_90 for the physical display. **3 / 3 passed again**, with exact dominant `#C7C6CA` for both capture modes. Restored and verified the original `lock 0` rotation setting afterward. This validates screenshot geometry after rotation; it is not an exhaustive test of every phone/tablet UI layout.
 
 The suite covers window capture excluding a full red accessibility overlay, display capture hiding that overlay, and secure-window rejection. It never changes secure settings or grants Accessibility itself.
 

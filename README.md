@@ -103,7 +103,7 @@ app/src/main/java/com/xiaoyue/uiinspector/
 ├── util/            # Immutable bounds, density, clipboard, locators
 └── ui/home/         # Compose Material 3 permission/status screen
 app/src/test/        # JVM unit tests
-app/src/androidTest/ # Screenshot device tests
+app/src/debug/       # Debug-only screenshot validation activity
 qa-target/           # Optional separate deterministic test app
 docs/VALIDATION.md   # Validation record
 ```
@@ -120,14 +120,15 @@ NodeTreeBuilder 仅在点击时遍历，最多 5000 节点 / 100 层。遍历后
 
 ```sh
 ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
-./gradlew :qa-target:assembleDebug :app:assembleDebugAndroidTest
+./gradlew :qa-target:assembleDebug
 adb install -r qa-target/build/outputs/apk/debug/qa-target-debug.apk
-adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 # Manually enable the installed UI Inspector accessibility service first:
-adb shell am instrument --user current -w -r com.xiaoyue.uiinspector.test/androidx.test.runner.AndroidJUnitRunner
+adb shell am start --user current -n com.xiaoyue.uiinspector/.ScreenshotValidationActivity
+# After completion (replace 10 with `adb shell am get-current-user` output):
+adb shell run-as com.xiaoyue.uiinspector --user 10 cat files/screenshot-validation.txt
 ```
 
-18 项 JVM 测试覆盖密度、clipping、候选排名、最小/最深节点、量化、dominant、中心文字干扰、小尺寸/透明/越界、采样数量、HEX 和 locator 转义。设备测试验证窗口截图排除覆盖层、整屏截图临时隐藏覆盖层、FLAG_SECURE，不自动开启权限。
+18 项 JVM 测试覆盖密度、clipping、候选排名、最小/最深节点、量化、dominant、中心文字干扰、小尺寸/透明/越界、采样数量、HEX 和 locator 转义。设备测试验证窗口截图排除覆盖层、整屏截图临时隐藏覆盖层、FLAG_SECURE，不自动开启权限。使用 Debug 专用 Activity 在已授权的服务进程内执行，避免 Instrumentation 强制停止目标进程导致无障碍连接失效。该入口不包含在 Release APK 中。报告以 DONE 结尾，全部通过时显示 `3 / 3 passed`；日志 tag 为 `UIInspector.Validation`。
 
 启动安全测试窗口（普通窗口去掉 `--ez secure true`）：
 
