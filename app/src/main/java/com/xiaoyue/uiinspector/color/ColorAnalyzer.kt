@@ -10,9 +10,9 @@ class ColorAnalyzer(private val config: ColorConfig = ColorConfig()) {
         fun channel(shift: Int) = (((color ushr shift) and 255) / config.quantizationStep * config.quantizationStep) shl shift
         return channel(16) or channel(8) or channel(0)
     }
-    private class Bucket { var count = 0; var red = 0L; var green = 0L; var blue = 0L }
-    /** Bins nearby RGB colors, then returns their actual mean (not the lower bin edge).
-     * This preserves ±5 accuracy on a flat surface while reducing anti-aliasing noise. */
+    private class Bucket { var count = 0; val exactColors = mutableMapOf<Int, Int>() }
+    /** Quantization finds clusters only. The representative is the most frequent real RGB
+     * in that cluster, never a rounded bin edge or a synthetic average. */
     fun analyze(width: Int, height: Int, centerX: Int?, centerY: Int?, pixel: (Int, Int) -> Int): ColorResult {
         if (width <= 0 || height <= 0) return ColorResult(null, null, emptyList())
         val center = if (centerX != null && centerY != null && centerX in 0 until width && centerY in 0 until height) pixel(centerX, centerY) else null
@@ -26,12 +26,14 @@ class ColorAnalyzer(private val config: ColorConfig = ColorConfig()) {
             val color = pixel(x, y)
             if ((color ushr 24) < 128) continue
             val bucket = bins.getOrPut(quantize(color)) { Bucket() }
-            bucket.count++; bucket.red += (color ushr 16) and 255; bucket.green += (color ushr 8) and 255; bucket.blue += color and 255
+            bucket.count++
+            val rgb = color or (0xff shl 24)
+            bucket.exactColors[rgb] = (bucket.exactColors[rgb] ?: 0) + 1
             samples++
         }
         if (samples == 0) return ColorResult(center, null, emptyList())
         val top = bins.entries.sortedWith(compareByDescending<Map.Entry<Int, Bucket>> { it.value.count }.thenBy { it.key }).take(3).map { (_, b) ->
-            val color = (0xff shl 24) or ((b.red / b.count).toInt() shl 16) or ((b.green / b.count).toInt() shl 8) or (b.blue / b.count).toInt()
+            val color = b.exactColors.entries.sortedWith(compareByDescending<Map.Entry<Int, Int>> { it.value }.thenBy { it.key }).first().key
             ColorShare(color, b.count.toDouble() / samples)
         }
         return ColorResult(center, top.firstOrNull()?.takeIf { it.fraction > config.dominanceThreshold }?.color, top)

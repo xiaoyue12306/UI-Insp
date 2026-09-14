@@ -17,6 +17,6 @@ class InspectorAccessibilityService : AccessibilityService() {
     fun stopInspector() { controller?.stop(); AccessibilityServiceState.running.value = false }
     override fun onAccessibilityEvent(event: AccessibilityEvent?) { if (event != null) controller?.onEvent(event) }
     override fun onInterrupt() { stopInspector() }
-    override fun onConfigurationChanged(newConfig: Configuration) { super.onConfigurationChanged(newConfig); if (AccessibilityServiceState.running.value) controller?.start() }
+    override fun onConfigurationChanged(newConfig: Configuration) { super.onConfigurationChanged(newConfig); if (AccessibilityServiceState.running.value) controller?.configurationChanged() }
     override fun onDestroy() { controller?.destroy(); scope.cancel(); AccessibilityServiceState.running.value = false; AccessibilityServiceState.service = null; AccessibilityServiceState.connected.value = false; super.onDestroy() }
 }

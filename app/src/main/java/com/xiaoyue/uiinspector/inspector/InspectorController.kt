@@ -1,139 +1,218 @@
 package com.xiaoyue.uiinspector.inspector
 
 import android.accessibilityservice.AccessibilityService
-import android.widget.Toast
-import android.util.Log
-import com.xiaoyue.uiinspector.BuildConfig
-import com.xiaoyue.uiinspector.overlay.FloatingInspectorOverlay
-import com.xiaoyue.uiinspector.overlay.OverlayController
-import com.xiaoyue.uiinspector.overlay.TouchCaptureOverlay
-import com.xiaoyue.uiinspector.overlay.HighlightOverlay
-import com.xiaoyue.uiinspector.overlay.InspectorPanelOverlay
-import com.xiaoyue.uiinspector.screenshot.ScreenshotProvider
-import com.xiaoyue.uiinspector.screenshot.ScreenshotResult
-import com.xiaoyue.uiinspector.color.ColorAnalyzer
 import android.graphics.ColorSpace
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
-import com.xiaoyue.uiinspector.util.copyText
-import com.xiaoyue.uiinspector.util.LocatorUtils
+import android.widget.Toast
+import com.xiaoyue.uiinspector.analysis.*
+import com.xiaoyue.uiinspector.color.rgbHex
+import com.xiaoyue.uiinspector.measurement.*
+import com.xiaoyue.uiinspector.overlay.*
+import com.xiaoyue.uiinspector.screenshot.*
+import com.xiaoyue.uiinspector.util.*
 import kotlinx.coroutines.*
 
+/** Coordinates selection and lifecycle only. Geometry/color work lives in SelectedItemAnalyzer. */
 class InspectorController(private val service: AccessibilityService) {
     val mode = InspectModeManager()
     private val overlays = OverlayController(service)
-    private var floating: FloatingInspectorOverlay? = null
-    private var capture: TouchCaptureOverlay? = null
+    private val panel = InspectorPanelOverlay(service, overlays)
+    private val screenshots = ScreenshotProvider(service)
+    private val colorCapture = ItemColorCapture(screenshots, overlays::hideAll, overlays::showAll)
+    private val analyzer = SelectedItemAnalyzer(colorCapture::capture)
+    private val generation = SelectionGeneration()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + CoroutineExceptionHandler { _, error ->
         Log.e("UIInspector", "Inspection operation failed", error)
-        stop()
-        Toast.makeText(service, "Inspector operation failed; start again", Toast.LENGTH_SHORT).show()
+        stop(); toast("Inspector operation failed; start again")
     })
-    private var job: Job? = null
-    private var tree: NodeTree? = null
-    private var candidates: List<NodeSnapshot> = emptyList()
-    private var highlight: HighlightOverlay? = null
-    private val panel = InspectorPanelOverlay(service, overlays)
-    private var colorText = "Screenshot analysis pending"
-    private var notice = ""
-    private val screenshots = ScreenshotProvider(service)
+    private var selectionJob: Job? = null
     private var colorJob: Job? = null
     private var invalidationJob: Job? = null
-    private var stale = false
+    private var floating: FloatingInspectorOverlay? = null
+    private var capture: TouchCaptureOverlay? = null
+    private var measurement: MeasurementOverlay? = null
+    private var tree: NodeTree? = null
+    private var candidates: List<NodeSnapshot> = emptyList()
+    private var details = false
+    private var advanced = false
+
+    private fun current() = (mode.state.value as? InspectorState.Selected)?.analysis
+    private fun toast(message: String) { Toast.makeText(service, message, Toast.LENGTH_SHORT).show() }
     fun start() {
         stop()
-        floating = FloatingInspectorOverlay(service, overlays, ::select, ::stop)
+        floating = FloatingInspectorOverlay(service, overlays, ::select, ::stop, ::pair, ::picker)
         if (floating?.show() == true) mode.state.value = InspectorState.Idle
     }
     fun select() {
         if (mode.state.value is InspectorState.Selecting) { start(); return }
-        job?.cancel(); colorJob?.cancel(); invalidationJob?.cancel(); overlays.clear(); tree = null; candidates = emptyList(); colorText = "Analyzing…"; notice = ""; stale = false
-        mode.state.value = InspectorState.Selecting
+        beginSelection(SelectionPurpose.ITEM)
+    }
+    private fun pair() {
+        val a = current()?.takeIf { !it.stale && !it.frozen }
+        beginSelection(if (a == null) SelectionPurpose.PAIR_A else SelectionPurpose.PAIR_B, a)
+    }
+    private fun picker() = beginSelection(SelectionPurpose.PIXEL)
+
+    private fun beginSelection(purpose: SelectionPurpose, anchor: SelectedItemAnalysis? = null) {
+        generation.next(); selectionJob?.cancel(); colorJob?.cancel(); invalidationJob?.cancel()
+        overlays.clear(); panel.remove(); measurement = null; details = false; advanced = false
+        mode.state.value = InspectorState.Selecting(purpose, anchor)
         capture = TouchCaptureOverlay(service, overlays, ::pick)
         if (capture?.show() != true) { stop(); return }
-        floating?.view?.text = "Cancel"
+        floating?.label(when (purpose) { SelectionPurpose.PAIR_A -> "Pick A"; SelectionPurpose.PAIR_B -> "Pick B"; SelectionPurpose.PIXEL -> "Pixel"; else -> "Cancel" })
         floating?.show()
-        Toast.makeText(service, "Tap an element. Long press the floating button to stop.", Toast.LENGTH_SHORT).show()
-        job = scope.launch { delay(30_000); if (mode.state.value is InspectorState.Selecting) start() }
+        toast(when (purpose) { SelectionPurpose.PAIR_A -> "Select item A"; SelectionPurpose.PAIR_B -> "Select item B"; SelectionPurpose.PIXEL -> "Tap any visible pixel"; else -> "Tap an item for size, spacing and color" })
+        selectionJob = scope.launch { delay(30_000); if (mode.state.value is InspectorState.Selecting) start() }
     }
+
     private fun pick(x: Int, y: Int) {
-        job?.cancel(); capture?.remove(); capture = null
-        job = scope.launch {
-            delay(80) // Let the touch-capture window detach before querying target windows.
+        val selecting = mode.state.value as? InspectorState.Selecting ?: return
+        selectionJob?.cancel(); capture?.remove(); capture = null
+        val token = generation.next()
+        selectionJob = scope.launch {
+            delay(100)
             val found = withContext(Dispatchers.Default) { NodeTreeBuilder(service).at(x, y) }
+            if (!generation.accepts(token)) return@launch
+            if (selecting.purpose == SelectionPurpose.PIXEL) { samplePixel(x, y, found, token); return@launch }
             tree = found
             candidates = NodeFinder.candidates(found?.nodes.orEmpty(), x, y)
             val node = candidates.firstOrNull()
-            if (node == null) { start(); Toast.makeText(service, "No accessible element here", Toast.LENGTH_SHORT).show(); return@launch }
-            mode.state.value = InspectorState.Selected(node)
-            floating?.view?.text = "Selected"
-            if (BuildConfig.DEBUG) Log.d("UIInspector.Node", "Selected class=${node.className} bounds=${node.bounds} idPresent=${node.resourceId != null}; text omitted for privacy")
-            notice = if (found?.truncated == true) "Tree truncated to protect performance" else ""
-            showSelected(node)
-            refreshColor()
+            if (node == null || found == null) { start(); toast("No accessible item here"); return@launch }
+            if (selecting.purpose == SelectionPurpose.PAIR_A) {
+                val a = withContext(Dispatchers.Default) { analyzer.measure(node, found) }
+                beginSelection(SelectionPurpose.PAIR_B, a)
+                return@launch
+            }
+            val anchor = selecting.anchor
+            if (anchor != null && (anchor.node.windowId != node.windowId || anchor.node.density != node.density)) {
+                start(); toast("A and B must belong to the same unchanged window and display density"); return@launch
+            }
+            // Refresh A's geometry in B's snapshot to avoid silently measuring against an old frame.
+            if (anchor != null && found.nodes.none { it.bounds == anchor.boundsPx && it.resourceId == anchor.node.resourceId && it.className == anchor.node.className }) {
+                start(); toast("Item A changed; select A and B again"); return@launch
+            }
+            choose(node, anchor?.boundsPx)
+        }
+    }
+
+    private fun choose(node: NodeSnapshot, anchor: Bounds? = null) {
+        val snapshot = tree ?: return
+        colorJob?.cancel(); invalidationJob?.cancel()
+        val token = generation.next()
+        val measured = analyzer.measure(node, snapshot).let {
+            if (anchor == null) it else it.copy(pair = SpacingCalculator.between(anchor, node.bounds, node.density))
+        }
+        mode.state.value = InspectorState.Selected(measured)
+        floating?.label("Select")
+        render()
+        startColor(measured, snapshot, token)
+    }
+
+    private fun startColor(a: SelectedItemAnalysis, snapshot: NodeTree, token: Long) {
+        colorJob = scope.launch {
+            val completed = analyzer.color(a, snapshot)
+            // Cancellation plus generation prevent old A/B results from overwriting C, even after Freeze.
+            if (generation.accepts(token) && current()?.node == a.node && current()?.frozen == false) {
+                mode.state.value = InspectorState.Selected(completed)
+                render()
+            }
         }
     }
     private fun refreshColor() {
-        if (stale) return
-        val node = (mode.state.value as? InspectorState.Selected)?.node ?: return
-        val currentTree = tree ?: return
-        colorJob?.cancel()
-        colorJob = scope.launch {
-            colorText = "Analyzing…"; showSelected(node)
-            val result = screenshots.capture(node.windowId, currentTree.windowBounds, node.bounds, overlays::hideAll, overlays::showAll)
-            colorText = when (result) {
-                is ScreenshotResult.Unavailable -> result.reason
-                is ScreenshotResult.Success -> try {
-                    val colors = withContext(Dispatchers.Default) {
-                        val srgb = ColorSpace.get(ColorSpace.Named.SRGB)
-                        ColorAnalyzer().analyze(result.bitmap.width, result.bitmap.height, result.centerX, result.centerY) { x, y ->
-                            result.bitmap.getColor(x, y).convert(srgb).toArgb()
-                        }
-                    }
-                    "${result.source}\n${colors.description()}"
-                } finally { result.bitmap.recycle() }
-            }
-            if ((mode.state.value as? InspectorState.Selected)?.node == node) showSelected(node)
-        }
+        val a = current()?.takeIf { !it.stale && !it.frozen } ?: return
+        val snapshot = tree ?: return
+        colorJob?.cancel(); val token = generation.next()
+        val pending = a.copy(renderedColor = null)
+        mode.state.value = InspectorState.Selected(pending); render()
+        startColor(pending, snapshot, token)
     }
-    private fun showSelected(node: NodeSnapshot) {
-        mode.state.value = InspectorState.Selected(node)
-        overlays.remove(highlight)
-        highlight = if (!stale) HighlightOverlay(service, overlays, node).also { it.show() } else null
-        val position = candidates.indexOfFirst { it.index == node.index }.let { if (it >= 0) "${it + 1} / ${candidates.size}" else "Tree node" }
+    private fun freeze() {
+        val a = current() ?: return
+        if (a.frozen) { beginSelection(SelectionPurpose.ITEM); return }
+        if (a.stale || a.renderedColor == null) return
+        generation.next(); colorJob?.cancel(); invalidationJob?.cancel()
+        mode.state.value = InspectorState.Selected(a.copy(frozen = true, notice = "Frozen snapshot — geometry and captured item pixels do not follow live UI"))
+        render()
+    }
+
+    private fun render() {
+        val a = current() ?: return
+        val node = a.node
         val nodes = tree?.nodes.orEmpty()
-        val parent = nodes.firstOrNull { it.index == node.parentIndex }
-        val child = nodes.firstOrNull { it.parentIndex == node.index }
-        val candidateIndex = candidates.indexOfFirst { it.index == node.index }
-        fun choose(next: NodeSnapshot) { colorText = "Analyzing…"; showSelected(next); refreshColor() }
-        fun action(target: NodeSnapshot?): (() -> Unit)? = target?.let { { choose(it) } }
-        val shown = panel.show(node, position, colorText, notice, listOf(
-            "Parent" to action(parent), "Child" to action(child), "Inspect" to ::select,
-            "Previous" to action(candidates.getOrNull(candidateIndex - 1)), "Next" to action(candidates.getOrNull(candidateIndex + 1)), "Refresh color" to if (stale) null else ::refreshColor,
-            "Copy ID" to node.resourceId?.takeIf { it.isNotBlank() }?.let { id -> { copyText(service, "Resource ID", id) } },
-            "Copy bounds" to { copyText(service, "Bounds", node.bounds.toString()) },
-            "Copy Appium" to { copyText(service, "Appium Python", LocatorUtils.appium(node)) },
-            "Close" to ::start, "Stop" to ::stop))
-        if (!shown) { stop(); Toast.makeText(service, "Unable to display Inspector panel", Toast.LENGTH_SHORT).show() }
+        val index = candidates.indexOfFirst { it.index == node.index }
+        val position = if (index >= 0) "Candidate ${index + 1} / ${candidates.size}" else "Tree node"
+        fun action(target: NodeSnapshot?): (() -> Unit)? = if (a.stale || a.frozen) null else target?.let { { choose(it) } }
+        val actions = mutableMapOf<String, (() -> Unit)?>(
+            "details" to { details = !details; render() }, "advanced" to { advanced = !advanced; render() },
+            "freeze" to if (a.frozen || (!a.stale && a.renderedColor != null)) ::freeze else null,
+            "summary" to { copyText(service, "Measurement summary", a.summary()) },
+            "refresh" to if (!a.frozen && !a.stale) ::refreshColor else null,
+            "parent" to action(nodes.firstOrNull { it.index == node.parentIndex }),
+            "child" to action(nodes.firstOrNull { it.parentIndex == node.index }),
+            "previous" to action(candidates.getOrNull(index - 1)), "next" to action(candidates.getOrNull(index + 1)),
+            "id" to node.resourceId?.let { id -> { copyText(service, "Resource ID", id) } },
+            "bounds" to { copyText(service, "Bounds", node.bounds.toString()) },
+            "appium" to { copyText(service, "Appium Python", LocatorUtils.appium(node)) }
+        )
+        a.neighbors.forEach { (direction, neighbor) -> actions["neighbor:${direction.name}"] = action(neighbor.node) }
+        overlays.remove(measurement)
+        if (!panel.show(a, details, advanced, position, actions)) { stop(); toast("Unable to show measurement card"); return }
+        measurement = if (!a.stale) MeasurementOverlay(service, overlays, a, panel.screenBounds).also { it.show() } else null
     }
+
+    private suspend fun samplePixel(x: Int, y: Int, target: NodeTree?, token: Long) {
+        val screen = overlays.manager.maximumWindowMetrics.bounds
+        val point = Bounds(x, y, x + 1, y + 1)
+        val shot = screenshots.capture(target?.windowId, target?.windowBounds ?: Bounds(screen.left, screen.top, screen.right, screen.bottom), point, overlays::hideAll, overlays::showAll)
+        var color: Int? = null
+        val message = when (shot) {
+            is ScreenshotResult.Unavailable -> shot.reason
+            is ScreenshotResult.Success -> try {
+                color = withContext(Dispatchers.Default) { shot.bitmap.getColor(0, 0).convert(ColorSpace.get(ColorSpace.Named.SRGB)).toArgb() }
+                "${rgbHex(color)}\n${rgbDescription(color)}\nScreen pixel ($x, $y)"
+            } finally { shot.bitmap.recycle() }
+        }
+        if (!generation.accepts(token)) return
+        mode.state.value = InspectorState.PickedColor(x, y, color, message)
+        floating?.label("Select")
+        panel.showPicker(message, buildMap {
+            if (color != null) put("Copy color") { copyText(service, "Pixel color", message) }
+            put("Pick again", ::picker); put("Close", ::start)
+        })
+    }
+
     fun onEvent(event: AccessibilityEvent) {
-        val node = (mode.state.value as? InspectorState.Selected)?.node ?: return
-        if (stale || event.packageName?.toString() == service.packageName) return
-        val targetChanged = event.windowId == node.windowId && (
-            event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED || event.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED ||
-            (event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED && event.windowChanges and
-                (AccessibilityEvent.WINDOWS_CHANGE_BOUNDS or AccessibilityEvent.WINDOWS_CHANGE_REMOVED) != 0))
+        val a = current() ?: return
+        if (a.frozen || a.stale || event.packageName?.toString() == service.packageName) return
+        val node = a.node
+        val changed = event.windowId == node.windowId && (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
+            event.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED || (event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED &&
+            event.windowChanges and (AccessibilityEvent.WINDOWS_CHANGE_BOUNDS or AccessibilityEvent.WINDOWS_CHANGE_REMOVED) != 0))
         val switched = event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && event.packageName != null && event.packageName.toString() != node.packageName
-        if (!targetChanged && !switched) return
-        // Debounce invalidation only; events never trigger tree traversal or screenshots.
+        if (!changed && !switched) return
         invalidationJob?.cancel()
         invalidationJob = scope.launch {
             delay(250)
-            val current = (mode.state.value as? InspectorState.Selected)?.node ?: return@launch
-            stale = true; colorJob?.cancel(); colorText = "Color unavailable for a stale snapshot. Select again."
-            notice = "Target changed. These are saved properties; tap Inspect to select again."
-            showSelected(current)
+            val current = current()?.takeIf { !it.frozen } ?: return@launch
+            generation.next(); colorJob?.cancel()
+            mode.state.value = InspectorState.Selected(current.copy(stale = true, notice = "Target changed. Select again for current measurements."))
+            render()
         }
     }
-    fun stop() { job?.cancel(); colorJob?.cancel(); invalidationJob?.cancel(); overlays.clear(); panel.remove(); highlight = null; floating = null; capture = null; tree = null; candidates = emptyList(); stale = false; mode.state.value = InspectorState.Stopped }
+    fun configurationChanged() {
+        val a = current()
+        if (a?.frozen == true) {
+            // Frozen coordinates remain historical; don't draw them over a different display geometry.
+            mode.state.value = InspectorState.Selected(a.copy(stale = true, notice = "Frozen snapshot; display changed. Coordinates belong to the captured orientation."))
+            render()
+        } else start()
+    }
+    fun stop() {
+        generation.next(); selectionJob?.cancel(); colorJob?.cancel(); invalidationJob?.cancel()
+        overlays.clear(); panel.remove(); floating = null; capture = null; measurement = null
+        tree = null; candidates = emptyList(); details = false; advanced = false
+        mode.state.value = InspectorState.Stopped
+    }
     fun destroy() { stop(); scope.cancel() }
 }
