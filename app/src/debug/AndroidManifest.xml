@@ -3,5 +3,6 @@
     <application>
         <!-- Developer-only entry point; absent from release APKs. Does not grant permissions. -->
         <activity android:name=".ScreenshotValidationActivity" android:exported="true" android:label="Screenshot validation"/>
+        <activity android:name=".MeasurementValidationActivity" android:exported="true" android:label="Measurement validation"/>
     </application>
 </manifest>

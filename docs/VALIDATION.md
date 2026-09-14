@@ -1,5 +1,40 @@
 # Validation record
 
+## Visual Inspector update — 2026-09-14
+
+Modified the existing project in place. `gradlew.bat test assembleDebug :app:lintDebug` completed successfully. **41 JVM tests passed, 0 failures / errors** (18 existing, 23 new). New suites: DimensionValueTest 4, NeighborFinderTest 8, SpacingCalculatorTest 5, SelectedItemAnalyzerTest 3, ColorAnalyzerTest 3. The A/B/C test deliberately finishes C before B and A and verifies only C is published.
+
+Installed both debug APKs on DUET 13M9611, API 37, display 3504 × 2190, density 1.9125, user 10. Existing manually enabled Accessibility binding remained available. No permission settings changed.
+
+`MeasurementValidationActivity`: **3 / 3 passed** using production NodeTreeBuilder, SelectedItemAnalyzer, NeighborFinder, ScreenshotProvider and ColorAnalyzer in a freeform fixture window:
+
+| Quantity | Actual result |
+| --- | --- |
+| Selected bounds | `[1103,884][1730,975]` |
+| Size | 627 × 91 px / 327.84 × 47.58 dp |
+| Top gap | 47 px / 24.58 dp, top_neighbor |
+| Bottom gap | 46 px / 24.05 dp, bottom_neighbor |
+| Left gap | 32 px / 16.73 dp, left_neighbor |
+| Right gap | 31 px / 16.21 dp, right_neighbor |
+| Main rendered color | #C7C6CA / RGB(199, 198, 202) |
+| Captured image | Nonempty retained Item PNG |
+
+The fixture requests 328 × 48dp and T/B 24dp, L/R 16dp. Integer layout conversion at fractional density causes pixel-level differences. The inspector reports actual screen bounds, without rounding results to requested design values.
+
+Repeated `ScreenshotValidationActivity`: **3 / 3 passed**, including window screenshot overlay exclusion, display screenshot overlay hiding and secure-window rejection.
+
+Manual ADB touch/screenshot review confirmed the one-selection flow, aligned bounding box, W/H rulers, all four directional gaps, actual color swatch, and compact card with size/spacing/color visible without scrolling. Details shows measurement first, neighbor navigation switches selection and updates color, and Advanced is initially collapsed and still exposes resource ID, class, text and state flags. Local screenshots are under ignored `app/build/smoke-*.png`; they are not committed because other device windows may appear behind the fixture.
+
+The update retains the coverage limitations below. Freeform translation is exercised on DUET; this is not certification of every ChromeOS/phone/multi-display configuration.
+
+Additional touch smoke checks passed:
+
+- Freeze retained the original button bounds, all gap values and #C7C6CA while the fixture EditText changed. Copy summary was pasted into that EditText and included Frozen status, both units, four gaps, HEX and RGB.
+- A ↔ B selected Save and Bottom through accessibility; two boxes and a purple vertical ruler displayed **46 px / 24.05 dp**, matching the automatic gap.
+- Independent Picker at screen pixel **(1150, 915)** returned **#C7C6CA / RGB(199, 198, 202)**.
+- Repeated selection and neighbor navigation updated measurements and color without a crash. The automated race test, rather than this manual smoke, verifies out-of-order completion.
+- After an APK replacement, launching validation before service reconnection initially reported an unavailable service. The Debug measurement entry point now waits up to 10 seconds for the existing connection; no permission is granted by the test.
+
 Dates: 2026-09-11 and 2026-09-12. Commands run from the repository root on Windows using JDK 21.
 
 ## Build and JVM checks

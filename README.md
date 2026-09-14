@@ -1,15 +1,16 @@
-# Android UI Inspector
+# Android Visual UI Inspector
 
 运行在 Android 设备上的 UI 检查工具，使用 Kotlin、Jetpack Compose / Material 3、AccessibilityService 和系统截图 API。安装后独立运行，不需要 root、Shizuku、ADB server 或 Appium server。
 
 ## Features
 
-- 可拖动悬浮按钮；点击选择，长按停止，选择模式 30 秒自动退出。
-- 多窗口 Accessibility 节点命中，屏幕坐标高亮，完整属性面板和 px / dp 尺寸。
-- Parent / First Child / Previous / Next 候选切换。
-- Copy ID、Copy Bounds、Copy Appium Python；转义 Python 字符串。
-- 中心色、主色、前三色与占比、颜色预览。
-- 平板右侧面板、手机底部面板；面板外继续正常操作。
+- 核心流程：**Select → 点击一次 Item → 尺寸、邻近间距、实际渲染颜色**。
+- 蓝色尺寸标尺、橙色四方向间距、主色色块与 HEX 直接画在目标 App 上，长度同时显示 dp / px。
+- 可拖动四按钮工具条：Select / A ↔ B / Picker / Close；选择模式 30 秒自动退出。
+- 默认紧凑测量卡片；Details 展开尺寸、间距、颜色、位置，Advanced 默认折叠保留完整 Accessibility 信息。
+- 点击 Details 中的邻居按钮可切换选择；Parent / Child / Previous / Next 与 Copy ID / Bounds / Appium 保留。
+- A/B 边缘测距，斜对角分别显示两轴距离；独立单像素 Color Picker。
+- Freeze 固定当前 bounds、间距、颜色与 Item 截图；Copy 导出双单位测量摘要。
 - 目标变化时标记历史快照，取消旧高亮并提示重新选择。
 - 密码节点文本脱敏；数据仅暂存内存，无网络权限，无上传。
 
@@ -41,14 +42,17 @@ Windows 使用 `gradlew.bat`。配置 `ANDROID_HOME` 或本机 `local.properties
 
 ## Usage
 
-点击悬浮按钮进入半透明选择层，再点击目标。选择层立即移除，展示高亮与属性面板。拖动按钮避开操作区域；选择模式点击 Cancel 或等待 30 秒退出；长按按钮停止。
+点击 **Select** 进入选择层，再点击目标。先展示 bounds、尺寸、可靠邻居间距，随后自动截图并更新颜色。拖动 Select 按钮移动整条工具栏；选择中点击 Cancel 或等待 30 秒退出；长按 Select 或点击 × 停止。
 
 - **Parent / Child**：沿本次快照的父节点 / 第一个子节点移动。
 - **Previous / Next**：切换原点击点覆盖的候选；不覆盖该点的导航节点显示 Tree node。
 - **Refresh color**：刷新当前快照颜色，不持续抓屏。
-- **Inspect**：重新取节点快照。目标改变后旧数据会标记 stale，必须重新 Inspect。
-- **Close**：关闭面板保留悬浮按钮。**Stop**：移除全部工具窗口。
-- 属性可滚动、长文本换行；导航和关闭按钮固定在上方。
+- **Select**：重新取节点快照。目标改变后旧数据标记 stale，要求重新选择。
+- **A ↔ B**：已有有效选择时作为 A，再点 B；否则先点 A 再点 B。两个节点须处于同一未改变的窗口与 density。
+- **Picker**：点击一个屏幕像素，显示 HEX / RGB，可复制；不要求该点提供独立语义节点。
+- **Freeze**：颜色请求完成后冻结快照（包括失败状态）。保留裁剪 Item 的 PNG，直到 Unfreeze、重新选择或关闭。旋转后仅保留历史卡片，避免在新坐标上绘制旧框。
+- **Copy**：复制尺寸、四方向可靠间距、A/B 间距、主色 HEX / RGB 与快照状态。不会主动发送到其他应用。
+- **Details → Advanced**：展开原有 Accessibility 属性和定位符复制。详情可滚动；Details / Freeze / Copy 固定在上方。
 
 Copy Appium 优先 `AppiumBy.ID`，其次 `AppiumBy.ACCESSIBILITY_ID`；均缺失时只提示可能的文本，不生成虚假 XPath。定位符的唯一性取决于目标 App。
 
@@ -59,7 +63,7 @@ Copy Appium 优先 `AppiumBy.ID`，其次 `AppiumBy.ACCESSIBILITY_ID`；均缺�
 | Package、Resource ID、Class | Accessibility |
 | Text、Content Description | Accessibility，密码文本脱敏 |
 | Bounds、X/Y、Width/Height px | `getBoundsInScreen()` |
-| Width/Height dp | 当前 display density，最多 1 位小数 |
+| Width/Height、间距、位置 dp / px | DimensionValue 保存 Float，显示最多 2 位小数，去掉尾零 |
 | clickable、enabled、focusable、focused、selected | Accessibility |
 | checkable、checked、scrollable、editable、visibleToUser | Accessibility |
 | actions、window ID、depth、child count | Accessibility |
@@ -85,10 +89,20 @@ API 34 方法均有 `Build.VERSION.SDK_INT >= 34` 判断。请求串行，至少
 1. 裁至可见节点区域，内缩左右 10%、上下 15%，小控件至少保留一个像素。
 2. 按面积自适应步长，约 4096 个样本；忽略 alpha < 128。
 3. R/G/B 按步长 8 量化，聚合相近色，降低字体抗锯齿和阴影干扰。
-4. 色簇返回实际 RGB 均值，避免直接返回量化桶下界引入偏差。
+4. 每个色簇返回该簇内出现最多的真实 RGB（众数），不返回桶边界或 RGB 均值。
 5. 输出前三色及占比；第一色 > 30% 时作为 dominant，否则只报告 Top 3。
 
 中心像素单独读取，可能正好是文字。样本转换为 sRGB，输出 `#RRGGBB`。参数集中在 `ColorConfig`。
+
+## Measurement and neighbor rules
+
+`SelectedItemAnalysis` 是测量 UI 的唯一主要输入，包含不可变 NodeSnapshot、px / dp bounds、DimensionValue 尺寸与位置、四方向 NeighborMeasurement、窗口边距、异步 ItemColorAnalysis、可选 A/B 结果与 frozen / stale 状态。`SelectedItemAnalyzer` 统一组装几何与颜色，`ItemColorCapture` 在后台分析并保存 Item PNG；Overlay 不直接遍历 AccessibilityNodeInfo。
+
+上下邻居要求 X 投影重叠、位于所选元素上下边缘外；左右邻居要求 Y 投影重叠、位于左右边缘外。间距为相邻边缘坐标差，不使用中心点欧氏距离。过滤不可见、零尺寸、同 bounds、双向包含、父子层级、本工具节点、不同窗口和部分越界节点。
+
+`NeighborConfig` 默认最小有效尺寸 2dp、投影比例 0.20、置信度 0.45。投影比例相对于双方较大跨度；置信度综合投影、尺寸质量与 dp 距离。极小点过滤，细长 divider 保留并降低尺寸质量。通过门槛后先取最小 gap，同 gap 优先更大 overlap、置信度及深度。未找到可靠邻居的方向不绘制。
+
+A/B 的投影重叠决定主测距轴；斜对角在卡片分别显示水平、垂直 separation，重叠明确报告为重叠。窗口边距独立列出，不能冒充 Item 间距。取消任务加 selection generation 防止旧颜色覆盖新选择。
 
 ## Architecture
 
@@ -97,7 +111,9 @@ app/src/main/java/com/xiaoyue/uiinspector/
 ├── MainActivity.kt
 ├── accessibility/   # Service lifecycle and connection state
 ├── inspector/       # State machine, tree snapshots, ranking, orchestration
-├── overlay/         # Window ownership, drag button, capture, highlight, panel
+├── overlay/         # Window ownership, toolbar, capture, measurement rulers, card
+├── measurement/     # DimensionValue, directional neighbors, edge gaps
+├── analysis/        # SelectedItemAnalysis, staged analyzer, PNG snapshot, summary
 ├── screenshot/      # API guards, fallback, buffer ownership, coordinates
 ├── color/           # Pure Kotlin sampling and color statistics
 ├── util/            # Immutable bounds, density, clipboard, locators
@@ -119,7 +135,7 @@ NodeTreeBuilder 仅在点击时遍历，最多 5000 节点 / 100 层。遍历后
 ## Testing
 
 ```sh
-./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
+./gradlew test assembleDebug :app:lintDebug
 ./gradlew :qa-target:assembleDebug
 adb install -r qa-target/build/outputs/apk/debug/qa-target-debug.apk
 # Manually enable the installed UI Inspector accessibility service first:
@@ -128,7 +144,16 @@ adb shell am start --user current -n com.xiaoyue.uiinspector/.ScreenshotValidati
 adb shell run-as com.xiaoyue.uiinspector --user 10 cat files/screenshot-validation.txt
 ```
 
-18 项 JVM 测试覆盖密度、clipping、候选排名、最小/最深节点、量化、dominant、中心文字干扰、小尺寸/透明/越界、采样数量、HEX 和 locator 转义。设备测试验证窗口截图排除覆盖层、整屏截图临时隐藏覆盖层、FLAG_SECURE，不自动开启权限。使用 Debug 专用 Activity 在已授权的服务进程内执行，避免 Instrumentation 强制停止目标进程导致无障碍连接失效。该入口不包含在 Release APK 中。报告以 DONE 结尾，全部通过时显示 `3 / 3 passed`；日志 tag 为 `UIInspector.Validation`。
+41 项 JVM 测试包含原有 18 项与新增 DimensionValueTest、NeighborFinderTest、SpacingCalculatorTest、SelectedItemAnalyzerTest、ColorAnalyzerTest，覆盖四方向、投影、斜对角、父子/同 bounds 过滤、双单位、A/B、迟到颜色隔离、真实 RGB 众数和冻结图像所有权。设备截图验证窗口排除覆盖层、整屏临时隐藏覆盖层、FLAG_SECURE。Debug 专用 Activity 在已授权的服务进程内执行，避免 Instrumentation 强制停止服务；不会自动开启权限，Release 不含这些入口。
+
+新增确定性测量页面及实机分析检查：
+
+```sh
+adb shell am start --user current -n com.xiaoyue.uiinspector/.MeasurementValidationActivity
+adb shell run-as com.xiaoyue.uiinspector --user 10 cat files/measurement-validation.txt
+```
+
+验证尺寸 328 × 48dp、上下 24dp / 左右 16dp（允许布局转整数造成的像素误差）、四方向资源 ID、主色 #C7C6CA 及保存的 PNG。完成后留下测试页面和工具条供手动 Smoke Test。也可直接启动 fixture 并传 `--ez measurement true`。
 
 启动安全测试窗口（普通窗口去掉 `--ez secure true`）：
 
@@ -142,6 +167,8 @@ QA Target 是独立 APK，不是 Inspector 的运行依赖。
 ## Limitations
 
 - Accessibility tree **不是完整 View hierarchy**；Compose 暴露 Semantics，可能合并节点。
+- 测量是 Accessibility bounds 之间的距离，不保证等同圆角、阴影等实际着色轮廓间距。装饰性且未暴露节点的元素无法成为邻居；置信度是启发式质量分数，不是统计正确率。
+- Freeze 保存所选 Item 的截图和历史数据，不冻结目标 App，也不保存全屏；不跨进程重启持久化。
 - 不能读取真实 drawable、cornerRadius、stroke、elevation、padding/margin、字体大小/粗细、Compose Modifier、Material theme token。
 - 颜色是截图估计；渐变、图像、遮挡和色彩管理影响统计，Top 3 不代表源码颜色。
 - FLAG_SECURE 阻止取色，不绕过系统限制。
