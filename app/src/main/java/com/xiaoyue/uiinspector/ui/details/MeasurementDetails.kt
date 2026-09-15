@@ -16,7 +16,11 @@ object MeasurementDetails {
         }
         actionRow(listOf("Smaller" to actions["smaller"],"Larger" to actions["larger"]))
         if(a.stale) line("Saved result. Tap the bubble to measure the current screen.",12f,true)
-        group("SIZE") { line("Width",13f,true); dual(prefs.lines(a.width)); line("Height",13f,true); dual(prefs.lines(a.height)) }
+        group("SIZE") {
+            line("Width",13f,true); dual(prefs.lines(a.width,exact=true)); line("Height",13f,true); dual(prefs.lines(a.height,exact=true))
+            line("Screen bounds · dp = px ÷ ${a.node.density}",11f,true)
+            line("≈ in quick results means within half a pixel of whole dp. Exact converted values are shown here.",11f,true)
+        }
         group("SPACING") {
             a.pair?.let { line("A ↔ B · ${it.relation.name.lowercase()}"); line("Horizontal",12f,true); dual(prefs.lines(it.horizontal)); line("Vertical",12f,true); dual(prefs.lines(it.vertical)); actionRow(listOf("Done" to actions["done"],"Measure again" to actions["pair"])) }
             Direction.entries.forEach { dir ->

@@ -147,4 +147,24 @@ that every device, orientation or gesture-navigation implementation is covered.
 
 ## Remaining coverage
 
+### Logo pixel-rounding report — 2026-09-15
+
+Reproduced the reported 32 × 32 dp logo in `com.lenovo.vantage.verify` on DUET.
+Its accessibility bounds were `[23,200][84,261]`, i.e. **61 × 61 screen pixels**.
+The active density override is 306 dpi (1.9125 px/dp), giving 31.895424 dp.
+32 dp maps to 61.2 px and rounds to 61 px; the previous 31.9 display was a valid
+inverse conversion, not evidence of incorrect pixel measurement.
+
+Quick cards and dimension chips now mark values within half a pixel of integer
+dp as approximate (`≈32`). Actual pixel values, stored analysis, copied summaries
+and exact dimensions in Details are unchanged. Values outside that tolerance and
+sub-dp values retain decimals. Added three regression tests, including the exact
+reported logo case; **55 JVM tests passed, zero failures**. Debug build and Lint
+passed; production measurement regression remained **3/3** on DUET.
+
+The user-supplied watermelon PNG is copied without modification to a nodpi resource
+(source and resource SHA-256 match), used for launcher/round icons and the floating
+bubble. The bubble uses FIT_CENTER so the bitmap is fully visible, with no tint.
+Local screenshot evidence stays in ignored `app/build/vantage-logo-*.png`.
+
 API 30–33 requires a separate physical device/emulator run; compilation and Lint validate guarded API usage, but are not runtime proof. External displays, magnification, OEM-specific scaling, additional ChromeOS variants and exhaustive app-specific semantics are not certified.

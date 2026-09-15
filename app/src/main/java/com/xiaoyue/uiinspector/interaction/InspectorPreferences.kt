@@ -6,10 +6,13 @@ import com.xiaoyue.uiinspector.measurement.formatDimension
 
 enum class PrimaryUnit { DP, PX }
 data class PresentationPreferences(val primaryUnit: PrimaryUnit = PrimaryUnit.DP, val showAllSpacing: Boolean = false, val expandedResults: Boolean = false) {
-    fun lines(value: DimensionValue): String = if (primaryUnit == PrimaryUnit.DP) value.lines()
-        else "${formatDimension(value.px)} px\n${formatDimension(value.dp)} dp"
+    fun lines(value: DimensionValue, exact: Boolean = false): String {
+        val dp = if(exact) formatDimension(value.dp) else value.displayDp()
+        val px = formatDimension(value.px)
+        return if(primaryUnit == PrimaryUnit.DP) "$dp dp\n$px px" else "$px px\n$dp dp"
+    }
     fun size(width: DimensionValue, height: DimensionValue): String {
-        val dp = "${formatDimension(width.dp)} × ${formatDimension(height.dp)} dp"
+        val dp = "${width.displayDp()} × ${height.displayDp()} dp"
         val px = "${formatDimension(width.px)} × ${formatDimension(height.px)} px"
         return if (primaryUnit == PrimaryUnit.DP) "$dp\n$px" else "$px\n$dp"
     }
