@@ -20,8 +20,13 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import com.xiaoyue.uiinspector.accessibility.AccessibilityServiceState
+import com.xiaoyue.uiinspector.interaction.*
 @Composable fun HomeScreen() {
     val context = LocalContext.current
+    val preferences = remember { InspectorPreferences(context) }
+    var showSettings by remember { mutableStateOf(false) }
+    var showDiagnostics by remember { mutableStateOf(false) }
+    var presentation by remember { mutableStateOf(preferences.read()) }
     val connected by AccessibilityServiceState.connected.collectAsState()
     val running by AccessibilityServiceState.running.collectAsState()
     var enabled by remember { mutableStateOf(false) }
@@ -44,17 +49,33 @@ import com.xiaoyue.uiinspector.accessibility.AccessibilityServiceState
     val displayBounds = remember(config) { context.getSystemService(WindowManager::class.java).maximumWindowMetrics.bounds }
     Surface(Modifier.fillMaxSize()) { Column(Modifier.safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Android Visual UI Inspector", style = MaterialTheme.typography.headlineMedium)
-        Text("Select one item. See its size, nearby spacing and rendered color directly on screen.")
-        Text("Accessibility: ${if (connected) "Enabled / Connected" else if (enabled) "Enabled / Waiting for service" else "Disabled"}")
-        Text("Inspector: ${if (running) "Running" else "Stopped"}")
-        Text("Android API ${Build.VERSION.SDK_INT} · Screenshot API available")
-        Text("Density ${metrics.density} · Display ${displayBounds.width()} × ${displayBounds.height()} px")
-        Text("App window ${config.screenWidthDp} × ${config.screenHeightDp} dp")
-        Button(onClick = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }) { Text("Enable Accessibility") }
-        Button(enabled = connected && !running, onClick = { AccessibilityServiceState.service?.startInspector() }) { Text("Start Inspector") }
-        OutlinedButton(enabled = running, onClick = { AccessibilityServiceState.service?.stopInspector() }) { Text("Stop Inspector") }
-        Text("Start Inspector → open the target app → Select → tap an item. Blue rulers show size; orange rulers show reliable neighbor gaps. Both dp and px are always visible.")
-        Text("Use A ↔ B for two items, or Picker for one pixel. Details contains full colors, position and collapsed Advanced accessibility information. Freeze keeps the current measurements and captured item image; Copy exports the summary.")
-        Text("Measurements use bounds exposed by the target app. Screenshots are analyzed locally. Secure windows cannot be sampled.")
+        Text("Measure UI size, spacing and color.")
+        Text("Accessibility  ${if (connected) "✓ Enabled" else if (enabled) "Connecting…" else "Not enabled"}")
+        Button(enabled = connected || !enabled, onClick = {
+            if (!connected) context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            else {
+                if (!running) AccessibilityServiceState.service?.startInspector()
+                (context as? android.app.Activity)?.finish()
+            }
+        }) { Text(if (!enabled && !connected) "Enable Accessibility" else if (running) "Return to Inspector" else "Start Inspector") }
+        if (running) TextButton(onClick = { AccessibilityServiceState.service?.stopInspector() }) { Text("Stop Inspector") }
+        HorizontalDivider()
+        Text("How to use", style = MaterialTheme.typography.titleLarge)
+        Text("1. Tap the floating button\n2. Tap any UI item\n3. Read size, spacing and color")
+        Text("Tap the bubble again to inspect another item. Long press it for more tools.", style = MaterialTheme.typography.bodyMedium)
+        Row { TextButton(onClick = { presentation=preferences.read(); showSettings=true }) { Text("Settings") }; TextButton(onClick = { showDiagnostics=!showDiagnostics }) { Text("Diagnostics") } }
+        if (showDiagnostics) {
+            Text("Inspector: ${if(running) "Running" else "Stopped"}\nService connected: $connected\nAndroid API ${Build.VERSION.SDK_INT}\nDensity ${metrics.density}\nDisplay ${displayBounds.width()} × ${displayBounds.height()} px\nApp window ${config.screenWidthDp} × ${config.screenHeightDp} dp")
+            Text("Measurements use accessibility bounds. Screenshots are analyzed locally. Secure windows block color capture.")
+        }
     } }
+    if (showSettings) AlertDialog(onDismissRequest = { showSettings=false }, title = { Text("Settings") }, text = {
+        Column {
+            Text("Primary unit")
+            Row { PrimaryUnit.entries.forEach { unit -> TextButton(onClick={ presentation=presentation.copy(primaryUnit=unit); preferences.save(presentation) }) { Text(if(presentation.primaryUnit==unit) "✓ ${unit.name.lowercase()}" else unit.name.lowercase()) } } }
+            Text("Both dp and px always remain visible.")
+            Row { Checkbox(presentation.showAllSpacing,{ presentation=presentation.copy(showAllSpacing=it); preferences.save(presentation) }); Text("Show all spacing") }
+            Row { Checkbox(presentation.expandedResults,{ presentation=presentation.copy(expandedResults=it); preferences.save(presentation) }); Text("Open results in Details") }
+        }
+    }, confirmButton = { TextButton(onClick = { showSettings=false }) { Text("Done") } })
 }

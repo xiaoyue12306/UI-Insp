@@ -7,7 +7,7 @@ fun rgbDescription(color: Int) = "RGB(${(color ushr 16) and 255}, ${(color ushr 
 fun SelectedItemAnalysis.summary(): String = buildString {
     appendLine("Item: ${node.resourceId ?: node.className ?: "Item"}")
     if (frozen) appendLine("Frozen snapshot")
-    if (stale) appendLine("Stale snapshot — reselect before using measurements")
+    if (stale) appendLine("Saved snapshot — screen has changed since selection")
     appendLine("\nSize:\n${formatDimension(width.dp)} dp × ${formatDimension(height.dp)} dp\n${formatDimension(width.px)} px × ${formatDimension(height.px)} px")
     appendLine("\nSpacing:")
     Direction.entries.forEach { direction -> appendLine("${direction.name.lowercase().replaceFirstChar { it.uppercase() }}: ${neighbors[direction]?.distance?.label() ?: "No reliable neighbor"}") }
