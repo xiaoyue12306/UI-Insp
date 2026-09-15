@@ -4,13 +4,13 @@
 
 ## Features
 
-- 核心流程：**Select → 点击一次 Item → 尺寸、邻近间距、实际渲染颜色**。
-- 蓝色尺寸标尺、橙色四方向间距、主色色块与 HEX 直接画在目标 App 上，长度同时显示 dp / px。
-- 可拖动四按钮工具条：Select / A ↔ B / Picker / Close；选择模式 30 秒自动退出。
-- 默认紧凑测量卡片；Details 展开尺寸、间距、颜色、位置，Advanced 默认折叠保留完整 Accessibility 信息。
-- 点击 Details 中的邻居按钮可切换选择；Parent / Child / Previous / Next 与 Copy ID / Bounds / Appium 保留。
-- A/B 边缘测距，斜对角分别显示两轴距离；独立单像素 Color Picker。
-- Freeze 固定当前 bounds、间距、颜色与 Item 截图；Copy 导出双单位测量摘要。
+- 核心流程：**点悬浮球 → 点 Item → 立即看尺寸、间距和颜色**，连续检查无需关闭旧结果。
+- 唯一常驻入口为 48dp 半透明悬浮球，可拖动、左右吸边并记住位置；长按只有测距、取色、设置、停止四项。
+- 蓝色尺寸标尺、默认最多两个有意义的橙色间距、主色色块与 HEX，dp 主值 / px 次值同时可见。
+- Quick Result Card 只有 Details / ×；手机展开底部详情，平板展开侧面详情，Advanced 默认折叠。
+- Details 顶部 Smaller / Larger 在同一点候选中即时修正选择；Spacing 行可点击切换邻居。
+- A/B 测距和带截图放大镜的单像素取色均在目标 App 上完成，无独立操作 Activity。
+- 结果自动保留 bounds、间距、颜色与 Item 截图；Details 的 Copy 导出统一摘要，无需 Freeze / Unfreeze。
 - 目标变化时标记历史快照，取消旧高亮并提示重新选择。
 - 密码节点文本脱敏；数据仅暂存内存，无网络权限，无上传。
 
@@ -35,24 +35,24 @@ Windows 使用 `gradlew.bat`。配置 `ANDROID_HOME` 或本机 `local.properties
 
 1. 打开 UI Inspector，点击 **Enable Accessibility**。
 2. 在系统设置手动启用 **UI Inspector**。侧载应用可能需先在应用信息中允许受限设置。
-3. 返回首页，等待 **Enabled / Connected**，点击 **Start Inspector**。
-4. 切换至目标 App，点击悬浮按钮，点击待检查元素。
+3. 返回首页，看到 **Enabled** 后点击 **Start Inspector**；首页自动 finish，返回之前的界面。
+4. 首次只需关闭一次短提示，然后点悬浮球、点待检查元素。
 
 服务通过 `BIND_ACCESSIBILITY_SERVICE` 保护，XML 启用 `canRetrieveWindowContent`、`canTakeScreenshot`、`flagReportViewIds` 和 `flagRetrieveInteractiveWindows`。不申请普通悬浮窗权限，不绕过无障碍授权。
 
 ## Usage
 
-点击 **Select** 进入选择层，再点击目标。先展示 bounds、尺寸、可靠邻居间距，随后自动截图并更新颜色。拖动 Select 按钮移动整条工具栏；选择中点击 Cancel 或等待 30 秒退出；长按 Select 或点击 × 停止。
+点悬浮球直接进入完全透明的选择层，顶部轻提示 Tap an item to inspect。抬手完成选择后立即移除触摸捕获，标尺不拦截触摸。先显示尺寸与间距，再自动补充颜色。每个 Item 两次点击即可；悬浮球始终代表重新选择。
 
-- **Parent / Child**：沿本次快照的父节点 / 第一个子节点移动。
-- **Previous / Next**：切换原点击点覆盖的候选；不覆盖该点的导航节点显示 Tree node。
-- **Refresh color**：刷新当前快照颜色，不持续抓屏。
-- **Select**：重新取节点快照。目标改变后旧数据标记 stale，要求重新选择。
-- **A ↔ B**：已有有效选择时作为 A，再点 B；否则先点 A 再点 B。两个节点须处于同一未改变的窗口与 density。
-- **Picker**：点击一个屏幕像素，显示 HEX / RGB，可复制；不要求该点提供独立语义节点。
-- **Freeze**：颜色请求完成后冻结快照（包括失败状态）。保留裁剪 Item 的 PNG，直到 Unfreeze、重新选择或关闭。旋转后仅保留历史卡片，避免在新坐标上绘制旧框。
-- **Copy**：复制尺寸、四方向可靠间距、A/B 间距、主色 HEX / RGB 与快照状态。不会主动发送到其他应用。
-- **Details → Advanced**：展开原有 Accessibility 属性和定位符复制。详情可滚动；Details / Freeze / Copy 固定在上方。
+- **Details → Smaller / Larger**：按原点击点候选的视觉面积修正，跳过重复 bounds，不依赖 Parent / Child 层级。
+- **Details → Spacing**：点击邻居行直接更新尺寸、间距和颜色。
+- **× / Back**：× 只隐藏当前结果；Back 按 Selecting → 取消、Details → 收起、Result → 隐藏处理。Idle 不拦截 Back，也不关闭无障碍服务。
+- **长按 → Measure between two items**：提示选择第一个、第二个元素，完成后提供 Done / Measure again。两个节点须处于同一未改变的窗口与 density。
+- **长按 → Color picker**：点屏幕像素得到真实色块、HEX / RGB 和 Copy / Done。按住可看进入取色时的截图放大预览，松手重新采样最终像素；不要求独立语义节点。
+- **长按 → Settings**：主单位 dp / px（只改变视觉主次）、Show all spacing、Details 展开偏好。本地保存，首次为 dp / 双单位显示 / 最多两个间距 / 收起详情。
+- **长按 → Stop inspector**：才关闭全部 Inspector 悬浮界面。
+- **保存结果**：普通结果本身即快照，直到重新选择或关闭；页面变化后保留测量、颜色与 Item PNG，并移除失效坐标上的标尺。旧快照不继续抓屏。
+- **Details → Copy**：统一摘要；Advanced 中保留 Parent / Child、Bounds / Appium 复制，Resource ID 长按复制。
 
 Copy Appium 优先 `AppiumBy.ID`，其次 `AppiumBy.ACCESSIBILITY_ID`；均缺失时只提示可能的文本，不生成虚假 XPath。定位符的唯一性取决于目标 App。
 
@@ -104,6 +104,14 @@ API 34 方法均有 `Build.VERSION.SDK_INT >= 34` 判断。请求串行，至少
 
 A/B 的投影重叠决定主测距轴；斜对角在卡片分别显示水平、垂直 separation，重叠明确报告为重叠。窗口边距独立列出，不能冒充 Item 间距。取消任务加 selection generation 防止旧颜色覆盖新选择。
 
+## Presentation policy
+
+原始 Neighbor 数据不变。`SpacingPresentation` 以 overlap、confidence 和 gap 提示主要布局方向；明显纵向/横向时优先对应两侧，否则取最近两个。Show all spacing 只放开展示数量，标签仍须通过避让检查。
+
+`LabelPlacementEngine` 优先安放宽高，再放间距和主色；考虑屏幕边缘、所选 bounds、邻居、结果卡和已放置标签。次要标签没有空间时不画，不与宽高重叠。小于等于 32dp 的小 Item 使用外部紧凑尺寸 chip；大于所在窗口约 75% 的容器使用框和尺寸 chip，避免超长标尺。
+
+`ResultCardPlacement` 在屏幕上下两侧和左右边缘比较位置，优先避开当前 Item。色块至少 24dp、有边框，白色也可辨认。混合颜色显示 Mixed colors，截图失败显示普通语言；技术状态留在 Advanced。
+
 ## Architecture
 
 ```text
@@ -111,26 +119,27 @@ app/src/main/java/com/xiaoyue/uiinspector/
 ├── MainActivity.kt
 ├── accessibility/   # Service lifecycle and connection state
 ├── inspector/       # State machine, tree snapshots, ranking, orchestration
-├── overlay/         # Window ownership, toolbar, capture, measurement rulers, card
+├── overlay/         # Bubble, transparent capture, placement, rulers, quick card
+├── interaction/     # Sealed UI state, Back policy, preferences, orchestration
 ├── measurement/     # DimensionValue, directional neighbors, edge gaps
 ├── analysis/        # SelectedItemAnalysis, staged analyzer, PNG snapshot, summary
 ├── screenshot/      # API guards, fallback, buffer ownership, coordinates
 ├── color/           # Pure Kotlin sampling and color statistics
 ├── util/            # Immutable bounds, density, clipboard, locators
-└── ui/home/         # Compose Material 3 permission/status screen
+└── ui/              # Home permission/start/settings/diagnostics; grouped Details
 app/src/test/        # JVM unit tests
 app/src/debug/       # Debug-only screenshot validation activity
 qa-target/           # Optional separate deterministic test app
 docs/VALIDATION.md   # Validation record
 ```
 
-Service 只处理系统生命周期与事件，Controller 负责状态与异步工作，OverlayController 管理 `TYPE_ACCESSIBILITY_OVERLAY`。服务浮窗使用原生 View，主应用使用 Compose Material 3。
+Service 保留系统生命周期与事件能力，仅新增 Back / Escape 转交；InspectorInteractionController 负责 UI 状态与异步协调，旧 InspectorController 名称为兼容别名。OverlayController 管理 TYPE_ACCESSIBILITY_OVERLAY。服务浮窗使用原生 View，主应用使用 Compose Material 3。
 
 NodeTreeBuilder 仅在点击时遍历，最多 5000 节点 / 100 层。遍历后释放 API 30–32 节点，UI 只保存不可变 NodeSnapshot / Bounds。排序集中于 NodeFinder：包含点击点 → 可见优先 → 面积小 → 深度大 → ID / clickable / 文本语义。窗口先筛选 bounds，按 active、focused、layer 排序，排除本工具与 accessibility overlay。
 
 高亮将屏幕 bounds 减去 `getLocationOnScreen()` 转成 Canvas 局部坐标，绘制 2dp 边框。触摸使用 `rawX/rawY`。窗口处理系统栏 / cutout，但系统保留手势区域仍可能不可捕获。
 
-空闲不遍历、不截图。事件仅做 250 ms debounce 失效标记。配置改变重建 idle overlay，要求重新选择，避免复用旧旋转、窗口大小或密度。
+空闲不遍历、不截图。事件仅做 250 ms debounce 快照标记。配置改变保留旧数据卡片并移除旧坐标标尺；悬浮球按记忆的屏幕侧边与纵向比例重新放置。Back 使用可聚焦且非触摸模态的控件窗口、API 33+ 返回回调及无障碍 Back/Escape 按键转交；其他按键不截获。悬浮球自身设置小范围手势排除，防止贴边拖动误触系统返回。
 
 ## Testing
 
@@ -144,7 +153,7 @@ adb shell am start --user current -n com.xiaoyue.uiinspector/.ScreenshotValidati
 adb shell run-as com.xiaoyue.uiinspector --user 10 cat files/screenshot-validation.txt
 ```
 
-41 项 JVM 测试包含原有 18 项与新增 DimensionValueTest、NeighborFinderTest、SpacingCalculatorTest、SelectedItemAnalyzerTest、ColorAnalyzerTest，覆盖四方向、投影、斜对角、父子/同 bounds 过滤、双单位、A/B、迟到颜色隔离、真实 RGB 众数和冻结图像所有权。设备截图验证窗口排除覆盖层、整屏临时隐藏覆盖层、FLAG_SECURE。Debug 专用 Activity 在已授权的服务进程内执行，避免 Instrumentation 强制停止服务；不会自动开启权限，Release 不含这些入口。
+52 项 JVM 测试包含原有 41 项及 InteractionPolicyTest、OverlayPresentationTest，新增覆盖返回层级、候选修正、双单位视觉主次、主要间距筛选、卡片与标签避让、空间不足隐藏次要标签。设备截图验证窗口排除覆盖层、整屏临时隐藏覆盖层、FLAG_SECURE。Debug 专用 Activity 在已授权的服务进程内执行，避免 Instrumentation 强制停止服务；不会自动开启权限，Release 不含这些入口。
 
 新增确定性测量页面及实机分析检查：
 
@@ -153,7 +162,14 @@ adb shell am start --user current -n com.xiaoyue.uiinspector/.MeasurementValidat
 adb shell run-as com.xiaoyue.uiinspector --user 10 cat files/measurement-validation.txt
 ```
 
-验证尺寸 328 × 48dp、上下 24dp / 左右 16dp（允许布局转整数造成的像素误差）、四方向资源 ID、主色 #C7C6CA 及保存的 PNG。完成后留下测试页面和工具条供手动 Smoke Test。也可直接启动 fixture 并传 `--ez measurement true`。
+验证尺寸 328 × 48dp、上下 24dp / 左右 16dp（允许布局转整数造成的像素误差）、四方向资源 ID、主色 #C7C6CA 及保存的 PNG。完成后留下测试页面和悬浮球供手动 Smoke Test，包含小图标 fixture。也可直接启动 fixture 并传 `--ez measurement true`。
+
+调试 APK 还提供只读状态探针，方便确认 ADB 触摸后的实际 UI 状态，无需再启动 Activity：
+
+```sh
+adb shell am broadcast --user current -n com.xiaoyue.uiinspector/.InteractionProbeReceiver
+adb shell run-as com.xiaoyue.uiinspector --user 10 cat files/interaction-validation.txt
+```
 
 启动安全测试窗口（普通窗口去掉 `--ez secure true`）：
 
@@ -168,7 +184,7 @@ QA Target 是独立 APK，不是 Inspector 的运行依赖。
 
 - Accessibility tree **不是完整 View hierarchy**；Compose 暴露 Semantics，可能合并节点。
 - 测量是 Accessibility bounds 之间的距离，不保证等同圆角、阴影等实际着色轮廓间距。装饰性且未暴露节点的元素无法成为邻居；置信度是启发式质量分数，不是统计正确率。
-- Freeze 保存所选 Item 的截图和历史数据，不冻结目标 App，也不保存全屏；不跨进程重启持久化。
+- 结果快照保存所选 Item 的截图和历史数据，不冻结目标 App；不跨进程重启持久化。取色放大镜临时保存进入取色时的屏幕预览，退出即释放，动态页面最终像素可能与预览不同。
 - 不能读取真实 drawable、cornerRadius、stroke、elevation、padding/margin、字体大小/粗细、Compose Modifier、Material theme token。
 - 颜色是截图估计；渐变、图像、遮挡和色彩管理影响统计，Top 3 不代表源码颜色。
 - FLAG_SECURE 阻止取色，不绕过系统限制。

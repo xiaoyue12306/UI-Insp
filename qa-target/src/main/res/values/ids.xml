@@ -1,2 +1,2 @@
 <resources><item name="color_button" type="id"/><item name="card" type="id"/><item name="child_label" type="id"/><item name="clipboard_input" type="id"/>
-<item name="top_neighbor" type="id"/><item name="bottom_neighbor" type="id"/><item name="left_neighbor" type="id"/><item name="right_neighbor" type="id"/><item name="diagonal" type="id"/></resources>
+<item name="top_neighbor" type="id"/><item name="bottom_neighbor" type="id"/><item name="left_neighbor" type="id"/><item name="right_neighbor" type="id"/><item name="diagonal" type="id"/><item name="small_icon" type="id"/></resources>

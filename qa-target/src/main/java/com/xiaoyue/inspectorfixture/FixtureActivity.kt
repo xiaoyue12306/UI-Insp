@@ -26,6 +26,10 @@ class FixtureActivity : Activity() {
             button(R.id.left_neighbor, "Left", 140, 240, 104, 48)
             button(R.id.right_neighbor, "Right", 604, 240, 104, 48)
             button(R.id.diagonal, "Diagonal", 610, 302, 104, 48)
+            frame.addView(ImageButton(this).apply {
+                id = R.id.small_icon; contentDescription = "Small icon"; setImageResource(android.R.drawable.ic_menu_info_details)
+                setPadding(0, 0, 0, 0); setBackgroundColor(0xffe3efff.toInt())
+            }, FrameLayout.LayoutParams(dp(24), dp(24)).apply { leftMargin = dp(770); topMargin = dp(240) })
             frame.addView(EditText(this).apply { id = R.id.clipboard_input; hint = "Paste measurement summary here"; gravity = Gravity.TOP; textSize = 14f },
                 FrameLayout.LayoutParams(dp(700), dp(240)).apply { leftMargin = dp(80); topMargin = dp(480) })
             setContentView(frame)

@@ -1,6 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <queries><package android:name="com.xiaoyue.inspectorfixture"/></queries>
     <application>
+        <receiver android:name=".InteractionProbeReceiver" android:exported="true"/>
         <!-- Developer-only entry point; absent from release APKs. Does not grant permissions. -->
         <activity android:name=".ScreenshotValidationActivity" android:exported="true" android:label="Screenshot validation"/>
         <activity android:name=".MeasurementValidationActivity" android:exported="true" android:label="Measurement validation"/>

@@ -97,6 +97,54 @@ Repeated all three checks at 09:43–09:44 after `cmd window user-rotation lock 
 
 The suite covers window capture excluding a full red accessibility overlay, display capture hiding that overlay, and secure-window rejection. It never changes secure settings or grants Accessibility itself.
 
+## Interaction simplification — 2026-09-15
+
+Continued the existing project and retained NodeFinder, NeighborFinder, measurement,
+screenshot and color-analysis engines. The interaction controller now presents a
+single bubble, transparent selection, a compact result card and optional details.
+
+`gradlew.bat test assembleDebug :app:lintDebug :app:assembleRelease --console=plain`
+passed. **52 JVM tests passed, zero failures**; Lint reported **0 errors, 28 warnings**.
+Release manifest inspection found no validation activities or InteractionProbeReceiver.
+The Release APK is unsigned; Debug is the installable artifact.
+
+Device: DUET 13M9611, API 37, 3504 × 2190, density 1.9125, user 10.
+Debug APK installed successfully using the existing Accessibility authorization.
+
+| Real-device interaction | Evidence / result |
+| --- | --- |
+| First-run welcome | One short instruction and Got it; not shown on subsequent starts |
+| Select item | Bubble → Save; transparent capture removed after selection |
+| Continuous selection | Save → Bottom → Right, each with bubble + item taps, no Close required |
+| Quick result | Dual-unit size, two spacing rows, bordered color swatch, Details and Close |
+| Details and Back | Grouped panel; Back collapses to quick result, another Back returns to Idle |
+| Smaller / Larger | Save `[1103,884][1730,975]` → window `[606,348][3128,1924]` → original Save |
+| Small item | 45 × 45 px icon; compact size chip outside the item, no long rulers |
+| Large container | Window outline and compact size chip, no full-length dimension rulers |
+| Pair measurement | Menu → A → B; vertical gap 46 px / 24.05 dp, Done and Measure again |
+| Color picker | Real screenshot magnifier; selected fixture background returned `#C7C6CA` with Copy / Done |
+| Bubble drag and edge snap | Moved left to right; right edge and normalized Y `0.38351595` retained after reinstall/restart |
+| Home Start | Starts Idle bubble, finishes MainActivity and returns to the previous fixture |
+| Crash log | No entries in the crash buffer during final checks |
+
+The edge-drag test initially triggered the system Back gesture. A gesture exclusion
+rectangle limited to the bubble fixed this; dragging and snapping then passed.
+The readonly Debug interaction probe checks state without launching an Activity.
+Avoid `uiautomator dump` while validating service continuity: on this device its
+automation session temporarily disconnected the service, which rebound afterward.
+No secure settings were changed.
+
+Production-engine regressions repeated on DUET: **measurement 3/3** (bounds and
+units, all four gaps, exact color and retained PNG) and **screenshots 3/3** (window
+excludes overlays, display capture hides overlays, secure window rejected).
+The Save reference remains 627 × 91 px / 327.84 × 47.58 dp, gaps T/B/L/R
+47/46/32/31 px, rendered background `#C7C6CA`.
+
+Local screenshots are under ignored `app/build/ux-*.png`; they are not published
+because unrelated applications are visible behind the fixture. Phone panel layout
+and API 30–33 still require runtime coverage; tablet smoke tests are not evidence
+that every device, orientation or gesture-navigation implementation is covered.
+
 ## Remaining coverage
 
 API 30–33 requires a separate physical device/emulator run; compilation and Lint validate guarded API usage, but are not runtime proof. External displays, magnification, OEM-specific scaling, additional ChromeOS variants and exhaustive app-specific semantics are not certified.
