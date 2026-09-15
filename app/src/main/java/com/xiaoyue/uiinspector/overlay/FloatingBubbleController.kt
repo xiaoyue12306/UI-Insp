@@ -16,10 +16,11 @@ class FloatingBubbleController(context: Context, private val host: OverlayContro
     private val size = host.dp(48)
     private val params = host.params(size,size)
     val view = ImageButton(context).apply {
-        setImageResource(R.drawable.ic_watermelon)
+        setImageResource(R.drawable.ic_magnifier)
         scaleType=android.widget.ImageView.ScaleType.FIT_CENTER
         setPadding(host.dp(3),host.dp(3),host.dp(3),host.dp(3))
-        background = GradientDrawable().apply { shape=GradientDrawable.OVAL; setColor(0xdf284b63.toInt()); setStroke(host.dp(1),0xff91b4d0.toInt()) }
+        background = GradientDrawable().apply { shape=GradientDrawable.OVAL; setColor(Color.WHITE); setStroke(host.dp(1),0xffdddddd.toInt()) }
+        clipToOutline=true
         contentDescription="Inspect an item. Long press for more options."
         elevation=host.dp(4).toFloat()
         setOnClickListener { select() }; setOnLongClickListener { menu(); true }
@@ -55,8 +56,8 @@ class FloatingBubbleController(context: Context, private val host: OverlayContro
         params.y=((screen.height()-size)*prefs.bubbleY).toInt().coerceIn(host.dp(32),(screen.height()-size-host.dp(32)).coerceAtLeast(host.dp(32)))
     }
     fun selecting(value: Boolean) {
-        view.setImageResource(if(value) android.R.drawable.ic_menu_close_clear_cancel else R.drawable.ic_watermelon)
-        if(value) view.setColorFilter(Color.WHITE) else view.clearColorFilter()
+        view.setImageResource(if(value) android.R.drawable.ic_menu_close_clear_cancel else R.drawable.ic_magnifier)
+        if(value) view.setColorFilter(0xff284b63.toInt()) else view.clearColorFilter()
         view.contentDescription=if(value) "Cancel selection" else "Inspect an item. Long press for more options."
     }
     fun bounds()=Rect(params.x,params.y,params.x+size,params.y+size)
