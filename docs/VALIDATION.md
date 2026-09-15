@@ -147,6 +147,21 @@ that every device, orientation or gesture-navigation implementation is covered.
 
 ## Remaining coverage
 
+### Readability polish — 2026-09-15
+
+Increased panel text (minimum 14sp; primary dual-unit values about 25sp bold),
+secondary value contrast, swatches to 36dp, and button targets to at least 48dp.
+Replaced default gray buttons with rounded blue controls and ripple feedback.
+Quick results use a 300dp panel with fixed direction columns; tablet Details uses
+400dp with white grouped cards, larger padding and consistent spacing. Quick
+results can scroll when limited by screen height. Canvas labels increased from
+13/10dp to 15/12dp with corresponding label-box sizing.
+
+Debug build and Lint passed. DUET screenshot review verified the quick card and
+scrollable details; the production measurement check passed 3/3. These are
+presentation changes; measurement arithmetic and node selection are unchanged.
+Screenshots stay local under ignored `app/build/readable-*.png`.
+
 ### Focused measurement UI — 2026-09-15
 
 Removed Resource ID and node-property presentation, Advanced state/actions,

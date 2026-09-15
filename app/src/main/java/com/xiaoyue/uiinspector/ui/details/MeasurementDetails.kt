@@ -13,11 +13,11 @@ object MeasurementDetails {
         fun group(title: String, fill: LinearLayout.() -> Unit) {
             val card = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding((12*density).toInt(),(10*density).toInt(),(12*density).toInt(),(10*density).toInt())
-                background = context.rounded(0xffffffff.toInt(),12)
+                setPadding((14*density).toInt(),(14*density).toInt(),(14*density).toInt(),(14*density).toInt())
+                background = context.rounded(0xffffffff.toInt(),16,0xffe4ebf3.toInt())
                 line(title,12f,true); fill()
             }
-            addView(card,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=(10*density).toInt() })
+            addView(card,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=(14*density).toInt() })
         }
         actionRow(listOf("Smaller" to actions["smaller"],"Larger" to actions["larger"]))
         if(a.stale) line("Saved result. Tap the bubble to measure again.",12f,true)

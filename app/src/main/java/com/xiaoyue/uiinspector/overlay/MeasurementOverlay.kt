@@ -81,8 +81,8 @@ class MeasurementOverlay(context: Context,private val host: OverlayController,pr
     }
     private fun label(canvas: Canvas,text: String,x: Float,y: Float,accent: Int,critical: Boolean,swatch: Int?=null): Boolean {
         val lines=text.split('\n'); val inset=if(swatch==null)dp(7) else dp(37)
-        paint.typeface=Typeface.DEFAULT_BOLD; paint.textSize=dp(13)
-        val w=(lines.maxOf { paint.measureText(it) }+inset+dp(7)).coerceAtMost(width-dp(8)); val h=max(if(swatch==null)0f else dp(36),if(lines.size==1)dp(28) else dp(44))
+        paint.typeface=Typeface.DEFAULT_BOLD; paint.textSize=dp(15)
+        val w=(lines.maxOf { paint.measureText(it) }+inset+dp(7)).coerceAtMost(width-dp(8)); val h=max(if(swatch==null)0f else dp(36),if(lines.size==1)dp(32) else dp(52))
         val p=placement.place(w,h,x,y,critical) ?: return false
         val r=RectF(p.left,p.top,p.right,p.bottom)
         if(!r.contains(x,y)) { paint.style=Paint.Style.STROKE; paint.color=accent; paint.strokeWidth=dp(1); canvas.drawLine(x,y,x.coerceIn(r.left,r.right),y.coerceIn(r.top,r.bottom),paint) }
@@ -90,8 +90,8 @@ class MeasurementOverlay(context: Context,private val host: OverlayController,pr
         paint.style=Paint.Style.FILL; paint.color=0xff102334.toInt(); canvas.drawRoundRect(r,dp(5),dp(5),paint)
         paint.style=Paint.Style.STROKE; paint.strokeWidth=dp(1); paint.color=accent; canvas.drawRoundRect(r,dp(5),dp(5),paint)
         paint.style=Paint.Style.FILL
-        lines.forEachIndexed { i,line -> paint.color=if(i==0)Color.WHITE else 0xffb9c9d8.toInt(); paint.textSize=if(i==0)dp(13) else dp(10); paint.typeface=if(i==0)Typeface.DEFAULT_BOLD else Typeface.DEFAULT
-            canvas.drawText(line,r.left+inset,r.top+dp(18)+i*dp(16),paint) }
+        lines.forEachIndexed { i,line -> paint.color=if(i==0)Color.WHITE else 0xffb9c9d8.toInt(); paint.textSize=if(i==0)dp(15) else dp(12); paint.typeface=if(i==0)Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+            canvas.drawText(line,r.left+inset,r.top+dp(21)+i*dp(20),paint) }
         swatch?.let { val box=RectF(r.left+dp(6),r.centerY()-dp(12),r.left+dp(30),r.centerY()+dp(12)); paint.color=it; canvas.drawRect(box,paint); paint.color=0xffb9c9d8.toInt(); paint.style=Paint.Style.STROKE; paint.strokeWidth=dp(1); canvas.drawRect(box,paint) }
         }
         return true
