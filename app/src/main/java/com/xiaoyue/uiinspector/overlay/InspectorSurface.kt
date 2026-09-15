@@ -54,7 +54,8 @@ fun LinearLayout.line(value: String, size: Float=14f, muted: Boolean=false): Tex
 }.also { addView(it) }
 fun LinearLayout.dual(value: String) { value.split('\n').forEachIndexed { i,s -> line(s,if(i==0) 22f else 14f,i>0) } }
 private fun Context.control(label: String, callback: (() -> Unit)?): Button=Button(this).apply {
-    text=label; textSize=15f; isAllCaps=false; isEnabled=callback!=null
+    text=label; textSize=if(label=="×") 30f else 15f; isAllCaps=false; isEnabled=callback!=null
+    if(label=="×") contentDescription="Close result"
     typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)
     val primary=label=="Details" || label=="Done"
     setTextColor(if(callback==null) 0xff8995a3.toInt() else if(primary) Color.WHITE else 0xff285b91.toInt())

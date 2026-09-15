@@ -147,6 +147,21 @@ that every device, orientation or gesture-navigation implementation is covered.
 
 ## Remaining coverage
 
+### Close control and color roles — 2026-09-15
+
+Close glyph enlarged from 15sp to 30sp with a Close result accessibility label.
+Replaced center-pixel and multi-color listings in Details with explicitly estimated
+background/text roles. Role inference requires a strong dominant background and,
+for text, nonempty node text plus a repeated contrasting cluster. Mixed backgrounds,
+low contrast, absent text semantics and rare noise produce no text estimate.
+These are screenshot heuristics, not recovered View color properties; icons or
+shadows may still resemble text. The UI explains that limitation.
+
+Four added unit tests passed; **59 total, zero failures**, Debug build and Lint passed.
+DUET screenshot verification of the QA Save button showed background `#C7C6CA`
+and text `#202124`, matching fixture definitions, and the larger close glyph.
+Screenshot evidence is local at ignored `app/build/color-roles.png`.
+
 ### Readability polish — 2026-09-15
 
 Increased panel text (minimum 14sp; primary dual-unit values about 25sp bold),

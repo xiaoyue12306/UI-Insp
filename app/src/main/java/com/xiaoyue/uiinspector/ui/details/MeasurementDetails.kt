@@ -5,6 +5,8 @@ import com.xiaoyue.uiinspector.analysis.*
 import com.xiaoyue.uiinspector.interaction.*
 import com.xiaoyue.uiinspector.measurement.*
 import com.xiaoyue.uiinspector.overlay.*
+import com.xiaoyue.uiinspector.color.ColorRoles
+import com.xiaoyue.uiinspector.color.rgbHex
 
 object MeasurementDetails {
     fun fill(body: LinearLayout, a: SelectedItemAnalysis, prefs: PresentationPreferences,
@@ -58,16 +60,14 @@ object MeasurementDetails {
         }
         group("COLOR") {
             val colors=a.renderedColor?.colors
-            swatch(colors?.dominantColor,a.renderedColor.colorMessage(),colors?.dominantColor?.let(::rgbDescription))
-            if(colors!=null) {
-                line("Center pixel",12f,true)
-                swatch(colors.centerColor,colors.centerHex ?: "Unavailable",colors.centerColor?.let(::rgbDescription))
-                if(colors.topColors.size>1) {
-                    line("Other sampled colors",12f,true)
-                    colors.topColors.filter { it.color!=colors.dominantColor }.take(3).forEach {
-                        swatch(it.color,it.hex,"${formatDimension((it.fraction*100).toFloat())}%")
-                    }
-                }
+            if(colors==null) swatch(null,a.renderedColor.colorMessage()) else {
+                val roles=ColorRoles.estimate(colors,!a.node.text.isNullOrBlank())
+                line(if(roles.background!=null) "Background · estimated" else "Main sampled color",14f,true)
+                swatch(colors.dominantColor,a.renderedColor.colorMessage(),colors.dominantColor?.let(::rgbDescription))
+                line("Text · estimated",14f,true)
+                if(roles.text!=null) swatch(roles.text,rgbHex(roles.text),rgbDescription(roles.text))
+                else line("Cannot identify text color reliably",14f,true)
+                line("Estimated from pixels. Icons, gradients and shadows can affect the result.",12f,true)
             }
             action("Color picker",actions["picker"])
         }

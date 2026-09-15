@@ -63,7 +63,9 @@ Windows 使用 `gradlew.bat`。配置 `ANDROID_HOME` 或本机 `local.properties
 | --- | --- |
 | Width/Height px | `getBoundsInScreen()` |
 | Width/Height、间距 dp / px | DimensionValue 保存 Float，显示最多 2 位小数，去掉尾零 |
-| Center、Dominant、Top 3 Colors | 渲染像素统计 |
+| 背景色候选、文字色候选 | 渲染像素估计，非控件源码属性；无法可靠区分时明确提示 |
+
+颜色详情不再展示中心像素及多个颜色排名。背景候选要求主色占比至少 70%；有文字语义时，文字候选从重复出现、与背景有明显对比的颜色簇中选择。图标、渐变、阴影和抗锯齿仍可能影响判断，因此始终标注 estimated，不把估计值当作真实 `textColor`。单像素取色器可用于人工核对。
 
 ## Android Version Behavior
 
