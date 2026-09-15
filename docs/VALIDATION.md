@@ -147,6 +147,26 @@ that every device, orientation or gesture-navigation implementation is covered.
 
 ## Remaining coverage
 
+### Focused measurement UI — 2026-09-15
+
+Removed Resource ID and node-property presentation, Advanced state/actions,
+Parent/Child and locator export actions, and all Copy controls including the
+pixel picker. Details now contains only Size, Nearby spacing and Color, with
+Smaller/Larger selection correction and direct pair/picker entry points.
+
+Nearby spacing uses direction arrows consistently in cards and overlays. Details
+shows all four directions in a two-column grid, missing neighbors as a dash, and
+clickable distance cells to inspect the neighbor. Dashed orange bounds identify
+the measured neighbor; size labels keep priority and all labels draw after rulers
+to avoid lines crossing text. Small items can also display nearby gaps. Pair mode
+shows only A/B and the distance, suppressing unrelated size/color labels.
+
+`test assembleDebug :app:lintDebug` passed with **55 JVM tests, zero failures**.
+DUET measurement regression remained **3/3**. Device UI checks confirmed compact
+details without removed actions, Save → Bottom through its distance cell, and
+A/B Save-to-Bottom measurement (46 px). Final APK was installed on DUET.
+Screen evidence remains local in ignored `app/build/focused-*.png`.
+
 ### Logo pixel-rounding report — 2026-09-15
 
 Reproduced the reported 32 × 32 dp logo in `com.lenovo.vantage.verify` on DUET.

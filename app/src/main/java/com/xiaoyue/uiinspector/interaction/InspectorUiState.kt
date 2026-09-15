@@ -8,7 +8,7 @@ sealed interface InspectorUiState {
     data object Idle : InspectorUiState
     data object Welcome : InspectorUiState
     data class Selecting(val purpose: SelectionPurpose, val anchor: SelectedItemAnalysis? = null) : InspectorUiState
-    data class ShowingResult(val analysis: SelectedItemAnalysis, val detailsExpanded: Boolean = false, val advancedExpanded: Boolean = false) : InspectorUiState
+    data class ShowingResult(val analysis: SelectedItemAnalysis, val detailsExpanded: Boolean = false) : InspectorUiState
     data class PickedColor(val color: Int?, val message: String) : InspectorUiState
     data class Menu(val previous: InspectorUiState) : InspectorUiState
     data class Settings(val previous: InspectorUiState) : InspectorUiState

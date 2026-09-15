@@ -161,19 +161,15 @@ class InspectorInteractionController(private val service: AccessibilityService) 
         host.remove(measurement); measurement=null
         when(val s=state.value) {
             is InspectorUiState.ShowingResult -> {
-                val a=s.analysis; val node=a.node; val nodes=tree?.nodes.orEmpty()
+                val a=s.analysis; val node=a.node
                 fun action(target: NodeSnapshot?,neighbor: Boolean=false): (() -> Unit)?=if(a.stale) null else target?.let { { choose(it,neighbor=neighbor) } }
                 val actions=mutableMapOf<String,(() -> Unit)?>(
-                    "details" to ::toggleDetails,"close" to ::hideResult,"summary" to { copyText(service,"Measurement summary",a.summary()) },
+                    "details" to ::toggleDetails,"close" to ::hideResult,
                     "smaller" to action(SelectionAlternatives.smaller(node,candidates)),"larger" to action(SelectionAlternatives.larger(node,candidates)),
-                    "parent" to action(nodes.firstOrNull { it.index==node.parentIndex },true),"child" to action(nodes.firstOrNull { it.parentIndex==node.index },true),
-                    "pair" to ::pair,"picker" to ::picker,"settings" to ::settings,"done" to ::hideResult,
-                    "advanced" to { state.value=s.copy(advancedExpanded=!s.advancedExpanded); render() },
-                    "id" to node.resourceId?.let { { copyText(service,"Resource ID",it) } },
-                    "bounds" to { copyText(service,"Bounds",node.bounds.toString()) },"appium" to { copyText(service,"Appium Python",LocatorUtils.appium(node)) }
+                    "pair" to ::pair,"picker" to ::picker,"settings" to ::settings,"done" to ::hideResult
                 )
                 a.neighbors.forEach { (dir,n) -> actions["neighbor:${dir.name}"]=action(n.node,true) }
-                panel.show(a,s.detailsExpanded,s.advancedExpanded,prefs.read(),actions)
+                panel.show(a,s.detailsExpanded,prefs.read(),actions)
                 if(!a.stale) measurement=MeasurementOverlay(service,host,a,panel.screenBounds,prefs.read(),bubble?.bounds()).also { it.show() }
             }
             InspectorUiState.Welcome -> panel.simple("Ready to inspect",bubble?.bounds()) {
@@ -195,7 +191,7 @@ class InspectorInteractionController(private val service: AccessibilityService) 
             }
             is InspectorUiState.PickedColor -> panel.simple("Color picker",bubble?.bounds()) {
                 swatch(s.color,s.message)
-                actionRow(listOf("Copy" to s.color?.let { { copyText(service,"Pixel color",s.message) } },"Done" to ::hideResult))
+                action("Done",::hideResult)
             }
             InspectorUiState.Idle,InspectorUiState.Stopped -> panel.remove()
             is InspectorUiState.Selecting -> Unit

@@ -15,7 +15,7 @@ class InspectorPanelOverlay(private val context: Context,private val host: Overl
     private fun root()=InspectorSurface(context,back).apply {
         setPadding(host.dp(12),host.dp(12),host.dp(12),host.dp(12)); background=context.rounded(0xfff0f5fa.toInt(),16,0xffd2dee9.toInt()); elevation=host.dp(6).toFloat()
     }
-    fun show(a: SelectedItemAnalysis,details: Boolean,advanced: Boolean,prefs: PresentationPreferences,actions: Map<String, (() -> Unit)?>): Boolean {
+    fun show(a: SelectedItemAnalysis,details: Boolean,prefs: PresentationPreferences,actions: Map<String, (() -> Unit)?>): Boolean {
         val previousScroll=if(shown==(a.node to details)) scroller?.scrollY ?: 0 else 0
         remove(); shown=a.node to details
         val root=root(); val screen=host.manager.maximumWindowMetrics.bounds
@@ -23,10 +23,10 @@ class InspectorPanelOverlay(private val context: Context,private val host: Overl
         val width=if(details) { if(tablet) host.dp(360) else screen.width()-host.dp(16) } else host.dp(252)
         val maxHeight=if(details) (screen.height()*(if(tablet) .85f else .65f)).toInt() else (screen.height()-host.dp(80)).coerceAtLeast(host.dp(48))
         if(details) {
-            root.line("Measurement",20f); root.actionRow(listOf("Back" to actions["details"],"Copy" to actions["summary"],"×" to actions["close"]))
+            root.line("Measurement",20f); root.actionRow(listOf("Back" to actions["details"],"×" to actions["close"]))
             val body=LinearLayout(context).apply { orientation=LinearLayout.VERTICAL }
             val scroll=ScrollView(context).apply { addView(body) }; scroller=scroll
-            root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f)); MeasurementDetails.fill(body,a,prefs,advanced,actions)
+            root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f)); MeasurementDetails.fill(body,a,prefs,actions)
             scroll.post { scroll.scrollTo(0,previousScroll) }
         } else QuickResultCard.fill(root,a,prefs,actions)
         val w=width.coerceAtMost(screen.width()-host.dp(16))

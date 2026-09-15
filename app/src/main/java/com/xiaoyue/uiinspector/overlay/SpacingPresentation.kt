@@ -4,6 +4,12 @@ import com.xiaoyue.uiinspector.measurement.*
 
 enum class LayoutDirectionHint { VERTICAL, HORIZONTAL, MIXED }
 object SpacingPresentation {
+    fun title(direction: Direction): String = when(direction) {
+        Direction.TOP -> "↑ Top"
+        Direction.BOTTOM -> "↓ Bottom"
+        Direction.LEFT -> "← Left"
+        Direction.RIGHT -> "→ Right"
+    }
     private fun vertical(n: NeighborMeasurement) = n.direction == Direction.TOP || n.direction == Direction.BOTTOM
     fun hint(neighbors: Collection<NeighborMeasurement>): LayoutDirectionHint {
         fun score(items: List<NeighborMeasurement>) = if (items.isEmpty()) 0f else items.sumOf { (it.overlapRatio * it.confidence / (1f + it.distance.dp / 24f)).toDouble() }.toFloat()

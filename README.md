@@ -4,16 +4,16 @@
 
 ## Features
 
-- 尺寸使用无障碍节点的实际屏幕像素；dp 是按当前密度换算的值，不代表能还原源码布局常量。快速结果在距整数 dp 不超过半个像素时标记为 `≈`，详情尺寸和复制摘要保留精确换算值。例如 306 dpi 下，61 px = 31.90 dp，快速显示 `≈32 dp`，px 始终保持 61。
+- 尺寸使用无障碍节点的实际屏幕像素；dp 是按当前密度换算的值，不代表能还原源码布局常量。快速结果在距整数 dp 不超过半个像素时标记为 `≈`，详情尺寸保留精确换算值。例如 306 dpi 下，61 px = 31.90 dp，快速显示 `≈32 dp`，px 始终保持 61。
 - 应用图标与悬浮球使用用户提供的西瓜原图。
 
 - 核心流程：**点悬浮球 → 点 Item → 立即看尺寸、间距和颜色**，连续检查无需关闭旧结果。
 - 唯一常驻入口为 48dp 半透明悬浮球，可拖动、左右吸边并记住位置；长按只有测距、取色、设置、停止四项。
 - 蓝色尺寸标尺、默认最多两个有意义的橙色间距、主色色块与 HEX，dp 主值 / px 次值同时可见。
-- Quick Result Card 只有 Details / ×；手机展开底部详情，平板展开侧面详情，Advanced 默认折叠。
+- Quick Result Card 只有 Details / ×；手机展开底部详情，平板展开侧面详情，仅展示尺寸、周边间距和颜色。
 - Details 顶部 Smaller / Larger 在同一点候选中即时修正选择；Spacing 行可点击切换邻居。
 - A/B 测距和带截图放大镜的单像素取色均在目标 App 上完成，无独立操作 Activity。
-- 结果自动保留 bounds、间距、颜色与 Item 截图；Details 的 Copy 导出统一摘要，无需 Freeze / Unfreeze。
+- 结果自动保留 bounds、间距、颜色与 Item 截图；无需 Freeze / Unfreeze。
 - 目标变化时标记历史快照，取消旧高亮并提示重新选择。
 - 密码节点文本脱敏；数据仅暂存内存，无网络权限，无上传。
 
@@ -51,25 +51,18 @@ Windows 使用 `gradlew.bat`。配置 `ANDROID_HOME` 或本机 `local.properties
 - **Details → Spacing**：点击邻居行直接更新尺寸、间距和颜色。
 - **× / Back**：× 只隐藏当前结果；Back 按 Selecting → 取消、Details → 收起、Result → 隐藏处理。Idle 不拦截 Back，也不关闭无障碍服务。
 - **长按 → Measure between two items**：提示选择第一个、第二个元素，完成后提供 Done / Measure again。两个节点须处于同一未改变的窗口与 density。
-- **长按 → Color picker**：点屏幕像素得到真实色块、HEX / RGB 和 Copy / Done。按住可看进入取色时的截图放大预览，松手重新采样最终像素；不要求独立语义节点。
+- **长按 → Color picker**：点屏幕像素得到真实色块、HEX / RGB 和 Done。按住可看进入取色时的截图放大预览，松手重新采样最终像素；不要求独立语义节点。
 - **长按 → Settings**：主单位 dp / px（只改变视觉主次）、Show all spacing、Details 展开偏好。本地保存，首次为 dp / 双单位显示 / 最多两个间距 / 收起详情。
 - **长按 → Stop inspector**：才关闭全部 Inspector 悬浮界面。
 - **保存结果**：普通结果本身即快照，直到重新选择或关闭；页面变化后保留测量、颜色与 Item PNG，并移除失效坐标上的标尺。旧快照不继续抓屏。
-- **Details → Copy**：统一摘要；Advanced 中保留 Parent / Child、Bounds / Appium 复制，Resource ID 长按复制。
 
-Copy Appium 优先 `AppiumBy.ID`，其次 `AppiumBy.ACCESSIBILITY_ID`；均缺失时只提示可能的文本，不生成虚假 XPath。定位符的唯一性取决于目标 App。
 
 ## Supported Information
 
 | Property | Source |
 | --- | --- |
-| Package、Resource ID、Class | Accessibility |
-| Text、Content Description | Accessibility，密码文本脱敏 |
-| Bounds、X/Y、Width/Height px | `getBoundsInScreen()` |
-| Width/Height、间距、位置 dp / px | DimensionValue 保存 Float，显示最多 2 位小数，去掉尾零 |
-| clickable、enabled、focusable、focused、selected | Accessibility |
-| checkable、checked、scrollable、editable、visibleToUser | Accessibility |
-| actions、window ID、depth、child count | Accessibility |
+| Width/Height px | `getBoundsInScreen()` |
+| Width/Height、间距 dp / px | DimensionValue 保存 Float，显示最多 2 位小数，去掉尾零 |
 | Center、Dominant、Top 3 Colors | 渲染像素统计 |
 
 ## Android Version Behavior
@@ -113,7 +106,7 @@ A/B 的投影重叠决定主测距轴；斜对角在卡片分别显示水平、�
 
 `LabelPlacementEngine` 优先安放宽高，再放间距和主色；考虑屏幕边缘、所选 bounds、邻居、结果卡和已放置标签。次要标签没有空间时不画，不与宽高重叠。小于等于 32dp 的小 Item 使用外部紧凑尺寸 chip；大于所在窗口约 75% 的容器使用框和尺寸 chip，避免超长标尺。
 
-`ResultCardPlacement` 在屏幕上下两侧和左右边缘比较位置，优先避开当前 Item。色块至少 24dp、有边框，白色也可辨认。混合颜色显示 Mixed colors，截图失败显示普通语言；技术状态留在 Advanced。
+`ResultCardPlacement` 在屏幕上下两侧和左右边缘比较位置，优先避开当前 Item。色块至少 24dp、有边框，白色也可辨认。混合颜色显示 Mixed colors，截图失败显示普通语言；不展示节点技术属性。
 
 ## Architecture
 

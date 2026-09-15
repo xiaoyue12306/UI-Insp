@@ -13,11 +13,13 @@ class MeasurementOverlay(context: Context,private val host: OverlayController,pr
     private val paint=Paint(Paint.ANTI_ALIAS_FLAG)
     private val origin=IntArray(2)
     private lateinit var placement: LabelPlacementEngine
+    private val labels=mutableListOf<() -> Unit>()
     private val sizeColor=0xff008cff.toInt(); private val gapColor=0xffffa726.toInt(); private val pairColor=0xffab47bc.toInt()
     private fun dp(value: Int)=value*resources.displayMetrics.density
     private fun local(b: Bounds)=RectF((b.left-origin[0]).toFloat(),(b.top-origin[1]).toFloat(),(b.right-origin[0]).toFloat(),(b.bottom-origin[1]).toFloat())
     private fun RectF.geometry()=PlacementRect(left,top,right,bottom)
     override fun onDraw(canvas: Canvas) {
+        labels.clear()
         getLocationOnScreen(origin)
         val b=local(analysis.boundsPx)
         val exclusions=listOfNotNull(reserved,bubble).map { RectF(it).apply { offset(-origin[0].toFloat(),-origin[1].toFloat()) }.geometry() }
@@ -27,6 +29,7 @@ class MeasurementOverlay(context: Context,private val host: OverlayController,pr
         val windowWidth=analysis.width.px+(analysis.windowEdges[Direction.LEFT]?.px ?: 0f)+(analysis.windowEdges[Direction.RIGHT]?.px ?: 0f)
         val windowHeight=analysis.height.px+(analysis.windowEdges[Direction.TOP]?.px ?: 0f)+(analysis.windowEdges[Direction.BOTTOM]?.px ?: 0f)
         val large=b.width()*b.height()>=min(width*height.toFloat(),windowWidth*windowHeight)*.75f && min(analysis.width.dp,analysis.height.dp)>200
+        if(analysis.pair==null) {
         if(small || large) label(canvas,preferences.size(analysis.width,analysis.height),b.centerX(),if(large)b.top+dp(28) else b.top-dp(30),sizeColor,true)
         else {
             val y=if(b.top>dp(100)) b.top-dp(16) else b.bottom+dp(16)
@@ -36,7 +39,8 @@ class MeasurementOverlay(context: Context,private val host: OverlayController,pr
             ruler(canvas,x,b.top,x,b.bottom,sizeColor)
             label(canvas,"H ${preferences.lines(analysis.height)}",if(x>b.right)x+dp(48) else x-dp(48),b.centerY(),sizeColor,true)
         }
-        if(!large && !small && analysis.pair==null) SpacingPresentation.visible(analysis.neighbors,preferences.showAllSpacing).forEach { n ->
+        }
+        if(!large && analysis.pair==null) SpacingPresentation.visible(analysis.neighbors,preferences.showAllSpacing).forEach { n ->
             val other=local(n.node.bounds)
             val x=(max(b.left,other.left)+min(b.right,other.right))/2; val y=(max(b.top,other.top)+min(b.bottom,other.bottom))/2
             val points=when(n.direction) {
@@ -45,8 +49,13 @@ class MeasurementOverlay(context: Context,private val host: OverlayController,pr
                 Direction.LEFT -> floatArrayOf(other.right,y,b.left,y)
                 Direction.RIGHT -> floatArrayOf(b.right,y,other.left,y)
             }
-            if(label(canvas,"${n.direction.name.lowercase().replaceFirstChar { it.uppercase() }} ${preferences.lines(n.distance)}",(points[0]+points[2])/2,(points[1]+points[3])/2,gapColor,false))
+            if(label(canvas,"${SpacingPresentation.title(n.direction)} ${preferences.lines(n.distance)}",(points[0]+points[2])/2,(points[1]+points[3])/2,gapColor,false)) {
+                // Identify the neighbor even when collision avoidance moves its label.
+                paint.style=Paint.Style.STROKE; paint.strokeWidth=dp(1); paint.color=0x99ffa726.toInt()
+                paint.pathEffect=DashPathEffect(floatArrayOf(dp(4),dp(3)),0f)
+                canvas.drawRect(other,paint); paint.pathEffect=null
                 ruler(canvas,points[0],points[1],points[2],points[3],gapColor)
+            }
         }
         analysis.pair?.let { pair ->
             val a=local(pair.a); val p=local(pair.b)
@@ -60,7 +69,9 @@ class MeasurementOverlay(context: Context,private val host: OverlayController,pr
                 ruler(canvas,x1,y,x2,y,pairColor); label(canvas,"A ↔ B ${preferences.lines(pair.horizontal)}",(x1+x2)/2,y,pairColor,true)
             }
         }
-        if(!large) label(canvas,analysis.renderedColor.colorMessage().substringBefore('\n'),b.centerX(),b.bottom+dp(42),sizeColor,false,analysis.renderedColor?.colors?.dominantColor)
+        if(!large && analysis.pair==null) label(canvas,analysis.renderedColor.colorMessage().substringBefore('\n'),b.centerX(),b.bottom+dp(42),sizeColor,false,analysis.renderedColor?.colors?.dominantColor)
+        // Draw text last so neighboring leaders and rulers cannot run across its glyphs.
+        labels.forEach { it() }
     }
     private fun ruler(canvas: Canvas,x1: Float,y1: Float,x2: Float,y2: Float,color: Int) {
         paint.style=Paint.Style.STROKE; paint.color=color; paint.strokeWidth=dp(1)
@@ -75,12 +86,14 @@ class MeasurementOverlay(context: Context,private val host: OverlayController,pr
         val p=placement.place(w,h,x,y,critical) ?: return false
         val r=RectF(p.left,p.top,p.right,p.bottom)
         if(!r.contains(x,y)) { paint.style=Paint.Style.STROKE; paint.color=accent; paint.strokeWidth=dp(1); canvas.drawLine(x,y,x.coerceIn(r.left,r.right),y.coerceIn(r.top,r.bottom),paint) }
-        paint.style=Paint.Style.FILL; paint.color=0xf0102334.toInt(); canvas.drawRoundRect(r,dp(5),dp(5),paint)
+        labels.add {
+        paint.style=Paint.Style.FILL; paint.color=0xff102334.toInt(); canvas.drawRoundRect(r,dp(5),dp(5),paint)
         paint.style=Paint.Style.STROKE; paint.strokeWidth=dp(1); paint.color=accent; canvas.drawRoundRect(r,dp(5),dp(5),paint)
         paint.style=Paint.Style.FILL
         lines.forEachIndexed { i,line -> paint.color=if(i==0)Color.WHITE else 0xffb9c9d8.toInt(); paint.textSize=if(i==0)dp(13) else dp(10); paint.typeface=if(i==0)Typeface.DEFAULT_BOLD else Typeface.DEFAULT
             canvas.drawText(line,r.left+inset,r.top+dp(18)+i*dp(16),paint) }
         swatch?.let { val box=RectF(r.left+dp(6),r.centerY()-dp(12),r.left+dp(30),r.centerY()+dp(12)); paint.color=it; canvas.drawRect(box,paint); paint.color=0xffb9c9d8.toInt(); paint.style=Paint.Style.STROKE; paint.strokeWidth=dp(1); canvas.drawRect(box,paint) }
+        }
         return true
     }
     fun show()=host.add(this,host.params(-1,-1,false))

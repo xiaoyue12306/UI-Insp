@@ -19,7 +19,7 @@ object QuickResultCard {
         dual(prefs.size(a.width,a.height))
         SpacingPresentation.visible(a.neighbors,prefs.showAllSpacing).take(2).forEach {
             val row=LinearLayout(context).apply { gravity=android.view.Gravity.CENTER_VERTICAL }
-            row.line(it.direction.name.lowercase().replaceFirstChar { c -> c.uppercase() },12f,true)
+            row.line(SpacingPresentation.title(it.direction),12f,true)
             val units=LinearLayout(context).apply { orientation=LinearLayout.VERTICAL; setPadding(16,0,0,0) }
             prefs.lines(it.distance).split('\n').forEachIndexed { i,s -> units.line(s,if(i==0)15f else 11f,i>0) }
             row.addView(units); addView(row)
